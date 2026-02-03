@@ -1,0 +1,42 @@
+# Web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+
+# OSC protocol for Yamaha TF
+python-osc==1.8.3
+
+# Async support
+aiohttp==3.9.1
+asyncio==3.4.3
+
+# Redis for caching and pub/sub
+redis==5.0.1
+aioredis==2.0.1
+
+# WebSocket support
+websockets==12.0
+
+# Dante/mDNS discovery
+zeroconf==0.131.0
+
+# E-ink display support
+Pillow==10.2.0
+pyusb==1.2.1
+
+# Configuration
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Utilities
+httpx==0.26.0
+orjson==3.9.12
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
