@@ -30,7 +30,7 @@ class Channel(Base):
     icon = Column(String(32), default="")
 
     # Fader and levels
-    fader_level = Column(Float, default=-float('inf'))  # dB, -inf to +10
+    fader_level = Column(Float, default=-90.0)  # dB, -90 (off) to +10
     pan = Column(Float, default=0.0)  # -100 to +100
     mute = Column(Boolean, default=False)
     on = Column(Boolean, default=True)

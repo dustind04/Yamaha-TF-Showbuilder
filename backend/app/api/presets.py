@@ -100,6 +100,34 @@ async def get_preset_categories(db: AsyncSession = Depends(get_db)):
     return {"categories": categories}
 
 
+@router.get("/search")
+async def search_presets(
+    q: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Search presets by name, microphone, or category."""
+    query = select(InputPreset).where(
+        (InputPreset.name.ilike(f"%{q}%")) |
+        (InputPreset.microphone.ilike(f"%{q}%")) |
+        (InputPreset.category.ilike(f"%{q}%")) |
+        (InputPreset.mic_manufacturer.ilike(f"%{q}%"))
+    ).order_by(InputPreset.category, InputPreset.name)
+
+    result = await db.execute(query)
+    presets = result.scalars().all()
+
+    return {"results": [
+        {
+            "id": p.id,
+            "name": p.name,
+            "category": p.category,
+            "microphone": p.microphone,
+            "is_factory": p.is_factory
+        }
+        for p in presets
+    ]}
+
+
 @router.get("/{preset_id}")
 async def get_preset(preset_id: int, db: AsyncSession = Depends(get_db)):
     """Get a specific preset with full details."""
@@ -298,31 +326,3 @@ async def init_factory_presets(db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"status": "ok", "presets_added": len(FACTORY_PRESETS)}
-
-
-@router.get("/search")
-async def search_presets(
-    q: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Search presets by name, microphone, or category."""
-    query = select(InputPreset).where(
-        (InputPreset.name.ilike(f"%{q}%")) |
-        (InputPreset.microphone.ilike(f"%{q}%")) |
-        (InputPreset.category.ilike(f"%{q}%")) |
-        (InputPreset.mic_manufacturer.ilike(f"%{q}%"))
-    ).order_by(InputPreset.category, InputPreset.name)
-
-    result = await db.execute(query)
-    presets = result.scalars().all()
-
-    return {"results": [
-        {
-            "id": p.id,
-            "name": p.name,
-            "category": p.category,
-            "microphone": p.microphone,
-            "is_factory": p.is_factory
-        }
-        for p in presets
-    ]}

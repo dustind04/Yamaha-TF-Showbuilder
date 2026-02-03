@@ -78,6 +78,49 @@ async def get_patches(
     return patches
 
 
+@router.get("/matrix")
+async def get_patch_matrix(db: AsyncSession = Depends(get_db)):
+    """
+    Get the full patch matrix showing all current routing.
+
+    Returns a matrix view of sources -> destinations.
+    """
+    result = await db.execute(select(Patch))
+    patches = result.scalars().all()
+
+    # Build matrix representation
+    matrix = {
+        "inputs": {},  # TF-Rack input patches
+        "outputs": {},  # TF-Rack output patches (to Dante)
+        "dante": []  # Other Dante patches
+    }
+
+    for patch in patches:
+        if patch.patch_type == PatchType.ANALOG_TO_CHANNEL:
+            matrix["inputs"][patch.dest_port] = {
+                "type": "analog",
+                "source": patch.source_port
+            }
+        elif patch.patch_type == PatchType.DANTE_TO_CHANNEL:
+            matrix["inputs"][patch.dest_port] = {
+                "type": "dante",
+                "source_device": patch.source_device,
+                "source_port": patch.source_port
+            }
+        elif patch.patch_type in [PatchType.CHANNEL_TO_DANTE, PatchType.AUX_TO_DANTE]:
+            matrix["outputs"][patch.source_port] = {
+                "dest_device": patch.dest_device,
+                "dest_port": patch.dest_port
+            }
+        else:
+            matrix["dante"].append({
+                "source": f"{patch.source_device}:{patch.source_port}",
+                "dest": f"{patch.dest_device}:{patch.dest_port}"
+            })
+
+    return matrix
+
+
 @router.get("/{patch_id}", response_model=PatchResponse)
 async def get_patch(patch_id: int, db: AsyncSession = Depends(get_db)):
     """Get a specific patch by ID."""
@@ -245,49 +288,6 @@ async def quick_patch_input(
         "input": qp.input_number,
         "source": f"{patch.source_device}:{patch.source_port}"
     }
-
-
-@router.get("/matrix")
-async def get_patch_matrix(db: AsyncSession = Depends(get_db)):
-    """
-    Get the full patch matrix showing all current routing.
-
-    Returns a matrix view of sources -> destinations.
-    """
-    result = await db.execute(select(Patch))
-    patches = result.scalars().all()
-
-    # Build matrix representation
-    matrix = {
-        "inputs": {},  # TF-Rack input patches
-        "outputs": {},  # TF-Rack output patches (to Dante)
-        "dante": []  # Other Dante patches
-    }
-
-    for patch in patches:
-        if patch.patch_type == PatchType.ANALOG_TO_CHANNEL:
-            matrix["inputs"][patch.dest_port] = {
-                "type": "analog",
-                "source": patch.source_port
-            }
-        elif patch.patch_type == PatchType.DANTE_TO_CHANNEL:
-            matrix["inputs"][patch.dest_port] = {
-                "type": "dante",
-                "source_device": patch.source_device,
-                "source_port": patch.source_port
-            }
-        elif patch.patch_type in [PatchType.CHANNEL_TO_DANTE, PatchType.AUX_TO_DANTE]:
-            matrix["outputs"][patch.source_port] = {
-                "dest_device": patch.dest_device,
-                "dest_port": patch.dest_port
-            }
-        else:
-            matrix["dante"].append({
-                "source": f"{patch.source_device}:{patch.source_port}",
-                "dest": f"{patch.dest_device}:{patch.dest_port}"
-            })
-
-    return matrix
 
 
 @router.post("/auto-patch-tio")

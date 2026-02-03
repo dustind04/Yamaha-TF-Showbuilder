@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backstage Display - TF Showbuilder</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(37, 37, 65, 0.9);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #3b82f6;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875rem;
+            color: #9ca3af;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .show-banner {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            padding: 30px 40px;
+            text-align: center;
+        }
+
+        .show-banner h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .show-banner .venue {
+            font-size: 1.25rem;
+            opacity: 0.9;
+        }
+
+        .show-banner .time {
+            font-size: 1.5rem;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
+        .artists-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
+            padding: 40px;
+        }
+
+        .artist-card {
+            background: rgba(37, 37, 65, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .artist-card:hover {
+            transform: translateY(-4px);
+            border-color: #3b82f6;
+        }
+
+        .artist-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #6b7280;
+            overflow: hidden;
+        }
+
+        .artist-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .artist-name {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .artist-instrument {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.875rem;
+            margin-bottom: 16px;
+        }
+
+        .equipment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .equipment-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .equipment-item .label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .equipment-item .icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .equipment-item .value {
+            color: #60a5fa;
+            font-weight: 500;
+        }
+
+        .channel-badge {
+            display: inline-block;
+            background: #3b82f6;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .no-data h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        /* Fullscreen mode */
+        .fullscreen-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(37, 37, 65, 0.9);
+            border: 1px solid #3b82f6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+        }
+
+        .fullscreen-btn:hover {
+            background: #3b82f6;
+        }
+
+        /* Auto-refresh indicator */
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(37, 37, 65, 0.9);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #3b82f6;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Clock */
+        .clock {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(37, 37, 65, 0.9);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px 20px;
+            }
+            .show-banner {
+                padding: 20px;
+            }
+            .show-banner h2 {
+                font-size: 1.75rem;
+            }
+            .artists-grid {
+                padding: 20px;
+                gap: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🎤 Backstage Display</h1>
+        <div class="status">
+            <div class="status-dot"></div>
+            <span>Live</span>
+        </div>
+    </header>
+
+    <div id="app">
+        <div class="no-data">
+            <h3>Loading...</h3>
+            <p>Connecting to TF Showbuilder</p>
+        </div>
+    </div>
+
+    <div class="refresh-indicator" id="refresh-indicator" style="display: none;">
+        <div class="refresh-spinner"></div>
+        <span>Updating...</span>
+    </div>
+
+    <div class="clock" id="clock"></div>
+
+    <button class="fullscreen-btn" onclick="toggleFullscreen()">
+        ⛶ Fullscreen
+    </button>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let refreshInterval = null;
+
+        // Clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent =
+                now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Fetch and render data
+        async function fetchData() {
+            const indicator = document.getElementById('refresh-indicator');
+            indicator.style.display = 'flex';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/backstage/current`);
+                const data = await response.json();
+                renderDisplay(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                renderError();
+            }
+
+            setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 500);
+        }
+
+        function renderDisplay(data) {
+            const app = document.getElementById('app');
+
+            if (data.message || !data.artists || data.artists.length === 0) {
+                app.innerHTML = `
+                    <div class="show-banner">
+                        <h2>${data.band_name || 'Waiting for Show'}</h2>
+                        <div class="venue">${data.show_name || 'No show configured'}</div>
+                    </div>
+                    <div class="no-data">
+                        <h3>No Artists Configured</h3>
+                        <p>Add artists to the current band to see them here</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let artistsHtml = '';
+            for (const artist of data.artists) {
+                const initial = artist.name ? artist.name.charAt(0).toUpperCase() : '?';
+                const photoHtml = artist.image_url
+                    ? `<img src="${artist.image_url}" alt="${artist.name}" onerror="this.parentElement.innerHTML='${initial}'">`
+                    : initial;
+
+                artistsHtml += `
+                    <div class="artist-card">
+                        <div class="artist-photo">${photoHtml}</div>
+                        <div class="artist-name">${artist.name || 'Unknown'}</div>
+                        <div class="artist-instrument">${artist.primary_instrument || ''}</div>
+
+                        <div class="equipment-list">
+                            ${artist.mic_type ? `
+                                <div class="equipment-item">
+                                    <span class="label">
+                                        <span class="icon">🎤</span>
+                                        Microphone
+                                    </span>
+                                    <span class="value">${artist.mic_number || ''} ${artist.mic_type}</span>
+                                </div>
+                            ` : ''}
+
+                            ${artist.iem_pack ? `
+                                <div class="equipment-item">
+                                    <span class="label">
+                                        <span class="icon">🎧</span>
+                                        IEM
+                                    </span>
+                                    <span class="value">${artist.iem_pack}</span>
+                                </div>
+                            ` : ''}
+
+                            ${artist.iem_frequency ? `
+                                <div class="equipment-item">
+                                    <span class="label">
+                                        <span class="icon">📡</span>
+                                        Frequency
+                                    </span>
+                                    <span class="value">${artist.iem_frequency}</span>
+                                </div>
+                            ` : ''}
+
+                            ${artist.monitor_mix ? `
+                                <div class="equipment-item">
+                                    <span class="label">
+                                        <span class="icon">🔊</span>
+                                        Monitor
+                                    </span>
+                                    <span class="value">${artist.monitor_mix}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        ${artist.channel_number ? `
+                            <div style="text-align: center;">
+                                <span class="channel-badge">CH ${artist.channel_number}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            app.innerHTML = `
+                <div class="show-banner">
+                    <h2>${data.band_name || 'Current Set'}</h2>
+                    <div class="venue">${data.show_name || ''}</div>
+                    ${data.venue ? `<div class="venue">📍 ${data.venue}</div>` : ''}
+                    ${data.set_time ? `<div class="time">🕐 ${data.set_time}</div>` : ''}
+                </div>
+                <div class="artists-grid">
+                    ${artistsHtml}
+                </div>
+            `;
+        }
+
+        function renderError() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="no-data">
+                    <h3>Connection Error</h3>
+                    <p>Unable to connect to TF Showbuilder. Retrying...</p>
+                </div>
+            `;
+        }
+
+        // Initial load and auto-refresh every 5 seconds
+        fetchData();
+        refreshInterval = setInterval(fetchData, 5000);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                fetchData();
+            }
+        });
+    </script>
+</body>
+</html>

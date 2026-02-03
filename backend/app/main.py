@@ -9,9 +9,11 @@ This application provides API control for:
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage
 from app.core.config import settings
@@ -121,3 +123,39 @@ async def health_check():
         "dante_enabled": settings.DANTE_DISCOVERY_ENABLED,
         "eink_enabled": settings.EINK_ENABLED
     }
+
+
+@app.get("/display")
+async def backstage_display():
+    """
+    Standalone backstage display page.
+
+    This is a read-only display that can be accessed from any device
+    on the network. It shows artist assignments, mic/IEM info, and
+    auto-refreshes every 5 seconds.
+
+    Access at: http://<server-ip>:8000/display
+    """
+    static_dir = Path(__file__).parent.parent / "static"
+    display_file = static_dir / "display.html"
+    if display_file.exists():
+        return FileResponse(display_file, media_type="text/html")
+    return {"error": "Display page not found"}
+
+
+@app.get("/display/wireless")
+async def wireless_display():
+    """
+    Standalone wireless monitoring display (Micboard-style).
+
+    Shows all wireless devices with battery/RF levels.
+    """
+    static_dir = Path(__file__).parent.parent / "static"
+    display_file = static_dir / "wireless.html"
+    if display_file.exists():
+        return FileResponse(display_file, media_type="text/html")
+    # Fallback to main display
+    display_file = static_dir / "display.html"
+    if display_file.exists():
+        return FileResponse(display_file, media_type="text/html")
+    return {"error": "Display page not found"}
