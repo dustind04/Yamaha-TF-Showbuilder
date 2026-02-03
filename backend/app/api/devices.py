@@ -223,6 +223,71 @@ async def refresh_dante_discovery(request: Request):
     return {"status": "ok", "message": "Discovery restarted"}
 
 
+class ManualDanteDevice(BaseModel):
+    name: str
+    model: str = ""
+    input_channels: int = 16
+    output_channels: int = 8
+
+
+@router.post("/dante/manual")
+async def add_manual_dante_device(device: ManualDanteDevice, request: Request):
+    """Manually add a Dante device (for separate network scenarios)."""
+    from app.services.dante_discovery import DanteDevice
+    from datetime import datetime
+
+    dante = getattr(request.app.state, 'dante', None)
+
+    if not dante:
+        # Create a simple device store if dante discovery isn't running
+        if not hasattr(request.app.state, 'manual_dante_devices'):
+            request.app.state.manual_dante_devices = {}
+
+        manual_device = DanteDevice(
+            name=device.name,
+            ip_address="manual",
+            model=device.model,
+            manufacturer="Yamaha",
+            input_channels=device.input_channels,
+            output_channels=device.output_channels,
+            is_online=True,
+            last_seen=datetime.now()
+        )
+        request.app.state.manual_dante_devices[device.name] = manual_device
+    else:
+        # Add to dante discovery service
+        manual_device = DanteDevice(
+            name=device.name,
+            ip_address="manual",
+            model=device.model,
+            manufacturer="Yamaha",
+            input_channels=device.input_channels,
+            output_channels=device.output_channels,
+            is_online=True,
+            last_seen=datetime.now()
+        )
+        dante.devices[device.name] = manual_device
+
+    return {"status": "ok", "message": f"Added {device.name}"}
+
+
+@router.delete("/dante/{device_name}")
+async def remove_dante_device(device_name: str, request: Request):
+    """Remove a manually added Dante device."""
+    dante = getattr(request.app.state, 'dante', None)
+
+    if dante and device_name in dante.devices:
+        del dante.devices[device_name]
+        return {"status": "ok", "message": f"Removed {device_name}"}
+
+    manual_devices = getattr(request.app.state, 'manual_dante_devices', {})
+    if device_name in manual_devices:
+        del manual_devices[device_name]
+        return {"status": "ok", "message": f"Removed {device_name}"}
+
+    raise HTTPException(status_code=404, detail="Device not found")
+
+
 @router.get("/dante/{device_name}")
 async def get_dante_device_details(device_name: str, request: Request):
     """Get detailed information about a specific Dante device."""

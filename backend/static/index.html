@@ -200,6 +200,10 @@
                         </div>
                         <div class="card">
                             <h3>Dante Devices</h3>
+                            <p class="helper-text">Auto-discovery may not work if Dante is on a separate network adapter. Use "Add Device" to manually add devices.</p>
+                            <div class="form-actions" style="margin-bottom: 1rem;">
+                                <button class="btn btn-primary" onclick="showAddDanteDeviceModal()">+ Add Device</button>
+                            </div>
                             <div id="dante-devices-list" class="devices-list"></div>
                         </div>
                     </div>

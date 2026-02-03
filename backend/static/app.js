@@ -869,11 +869,14 @@ async function loadDevices() {
             <div class="device-item">
                 <div>
                     <div class="device-name">${d.name}</div>
-                    <div class="device-ip">${d.ip || 'N/A'} • ${d.input_channels || 0}in/${d.output_channels || 0}out</div>
+                    <div class="device-ip">${d.model || 'Unknown'} • ${d.ip_address || 'manual'} • ${d.input_channels || 0}in/${d.output_channels || 0}out</div>
                 </div>
-                <div class="device-status ${d.online ? 'online' : 'offline'}">${d.online ? 'Online' : 'Offline'}</div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div class="device-status ${d.is_online ? 'online' : 'offline'}">${d.is_online ? 'Online' : 'Offline'}</div>
+                    <button class="btn btn-sm btn-danger" onclick="removeDanteDevice('${d.name.replace(/'/g, "\\'")}')">×</button>
+                </div>
             </div>
-        `).join('') || '<p class="placeholder-text">No Dante devices found</p>';
+        `).join('') || '<p class="placeholder-text">No Dante devices found. Click "Add Device" to manually add devices.</p>';
     } catch (e) {
         console.error('Failed to load devices', e);
     }
@@ -883,9 +886,8 @@ async function connectTFRack() {
     const ip = document.getElementById('tf-ip').value;
     const port = parseInt(document.getElementById('tf-port').value);
     try {
-        await api('/devices/tf-rack/connect', {
-            method: 'POST',
-            body: JSON.stringify({ ip, port })
+        await api(`/devices/tf-rack/connect?ip_address=${encodeURIComponent(ip)}&port=${port}`, {
+            method: 'POST'
         });
         loadDevices();
         loadDashboard();
@@ -910,6 +912,75 @@ async function refreshDevices() {
         loadDevices();
     } catch (e) {
         console.error('Failed to refresh', e);
+    }
+}
+
+function showAddDanteDeviceModal() {
+    showModal('Add Dante Device', `
+        <p style="margin-bottom: 1rem; color: #888;">Manually add Dante devices when auto-discovery doesn't work (e.g., devices on a separate network adapter).</p>
+        <div class="form-group">
+            <label>Device Name</label>
+            <input type="text" id="dante-name" class="input" placeholder="e.g., Y001-Yamaha-Tio1608-D-28f094">
+        </div>
+        <div class="form-group">
+            <label>Model</label>
+            <select id="dante-model" class="input">
+                <option value="TIO-1608-D">Yamaha TIO-1608-D</option>
+                <option value="NY64-D">Yamaha NY64-D</option>
+                <option value="Rio3224-D2">Yamaha Rio3224-D2</option>
+                <option value="Rio1608-D2">Yamaha Rio1608-D2</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Input Channels</label>
+            <input type="number" id="dante-inputs" class="input" value="16" min="0" max="64">
+        </div>
+        <div class="form-group">
+            <label>Output Channels</label>
+            <input type="number" id="dante-outputs" class="input" value="8" min="0" max="64">
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" onclick="addManualDanteDevice()">Add Device</button>
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+    `);
+}
+
+async function addManualDanteDevice() {
+    const data = {
+        name: document.getElementById('dante-name').value,
+        model: document.getElementById('dante-model').value,
+        input_channels: parseInt(document.getElementById('dante-inputs').value),
+        output_channels: parseInt(document.getElementById('dante-outputs').value)
+    };
+
+    if (!data.name) {
+        alert('Please enter a device name');
+        return;
+    }
+
+    try {
+        await api('/devices/dante/manual', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        closeModal();
+        loadDevices();
+        loadDashboard();
+    } catch (e) {
+        alert('Failed to add device: ' + e.message);
+    }
+}
+
+async function removeDanteDevice(deviceName) {
+    if (!confirm(`Remove device "${deviceName}"?`)) return;
+    try {
+        await api(`/devices/dante/${encodeURIComponent(deviceName)}`, { method: 'DELETE' });
+        loadDevices();
+        loadDashboard();
+    } catch (e) {
+        alert('Failed to remove device: ' + e.message);
     }
 }
 
