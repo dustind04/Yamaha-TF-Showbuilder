@@ -37,12 +37,6 @@ export default function ChannelStrip({ channel, showMeter = true, compact = fals
     updateChannel.mutate({ id: channel.id, updates: { on: !channel.on } })
   }, [channel.id, channel.on, updateChannel])
 
-  const dbToPercent = (db: number): number => {
-    if (db <= -90) return 0
-    if (db >= 10) return 100
-    return ((db + 90) / 100) * 100
-  }
-
   const meterDbToPercent = (value: number): number => {
     // Assuming meter value is 0-1
     return value * 100

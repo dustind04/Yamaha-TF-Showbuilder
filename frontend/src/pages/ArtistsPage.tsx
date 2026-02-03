@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { User, Plus, Trash2, Edit2, Mic, Headphones, Upload, Camera } from 'lucide-react'
+import { User, Plus, Trash2, Edit2, Mic, Headphones, Camera } from 'lucide-react'
 import clsx from 'clsx'
 import api from '../services/api'
 

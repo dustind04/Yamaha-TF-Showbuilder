@@ -30,14 +30,6 @@ export default function EInkPage() {
     },
   })
 
-  const updateChannelLabelMutation = useMutation({
-    mutationFn: ({ channel, text }: { channel: number; text: string }) =>
-      einkApi.updateChannelLabel(channel, text),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eink-status'] })
-    },
-  })
-
   const bulkUpdateMutation = useMutation({
     mutationFn: (labels: Record<number, string>) => einkApi.bulkUpdate(labels),
     onSuccess: () => {

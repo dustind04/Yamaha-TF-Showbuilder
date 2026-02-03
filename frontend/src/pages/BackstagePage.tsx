@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Monitor, RefreshCw, Battery, Radio, Volume2, AlertTriangle } from 'lucide-react'
+import { Monitor, RefreshCw, Battery, Radio, Volume2 } from 'lucide-react'
 import clsx from 'clsx'
 import api from '../services/api'
 

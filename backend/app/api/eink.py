@@ -35,8 +35,8 @@ class DisplayStatus(BaseModel):
     index: int
     connected: bool
     current_text: str
-    channel_number: Optional[int]
-    last_update: Optional[str]
+    channel_number: Optional[int] = None
+    last_update: Optional[str] = None
 
 
 class BulkLabelUpdate(BaseModel):

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calendar, Plus, Trash2, Edit2, Users, Music, MapPin, Clock } from 'lucide-react'
+import { Calendar, Plus, Trash2, Users, Music, MapPin } from 'lucide-react'
 import clsx from 'clsx'
 import api from '../services/api'
 
