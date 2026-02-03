@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage
+from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage, songs
 from app.core.config import settings
 from app.core.database import init_db
 from app.services.tf_rack import TFRackService
@@ -117,6 +117,7 @@ app.include_router(eink.router, prefix="/api/eink", tags=["E-Ink Displays"])
 app.include_router(shows.router, prefix="/api", tags=["Shows, Bands, Artists"])
 app.include_router(presets.router, prefix="/api/presets", tags=["Input Presets"])
 app.include_router(backstage.router, prefix="/api/backstage", tags=["Backstage Monitor"])
+app.include_router(songs.router, prefix="/api/songs", tags=["Songs & Setlists"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 
 

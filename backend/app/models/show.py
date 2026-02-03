@@ -156,6 +156,7 @@ class Artist(Base):
 
     # Relationships
     bands = relationship("Band", secondary=band_artists, back_populates="artists")
+    songs = relationship("Song", secondary="artist_songs", back_populates="artists")
 
     def __repr__(self):
         return f"<Artist {self.name} ({self.primary_instrument})>"

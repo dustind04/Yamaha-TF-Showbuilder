@@ -132,6 +132,50 @@ export interface WSMessage {
   [key: string]: any
 }
 
+// Song types
+export interface Song {
+  id: number
+  title: string
+  artist_name: string
+  album?: string
+  year?: number
+  original_key: string
+  tempo?: number
+  time_signature: string
+  duration_seconds?: number
+  chord_chart?: string
+  lyrics?: string
+  genre?: string
+  tags: string[]
+  notes?: string
+  default_scene_id?: number
+  source?: string
+  source_url?: string
+}
+
+export interface SetlistEntry {
+  position: number
+  song: Song
+  scene_id?: number
+  notes?: string
+}
+
+export interface Setlist {
+  show_id: number
+  show_name: string
+  setlist: SetlistEntry[]
+  total_duration: number
+}
+
+export interface ArtistSong {
+  id: number
+  title: string
+  artist_name: string
+  original_key: string
+  is_lead_vocal: boolean
+  enabled: boolean
+}
+
 // API response types
 export interface APIResponse<T> {
   status: string

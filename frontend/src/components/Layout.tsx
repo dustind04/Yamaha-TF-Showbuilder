@@ -12,7 +12,8 @@ import {
   Activity,
   Calendar,
   Users,
-  Tv
+  Tv,
+  Music
 } from 'lucide-react'
 import { healthCheck } from '../services/api'
 import { useWebSocket } from '../services/websocket'
@@ -25,6 +26,7 @@ const navItems = [
   { path: '/scenes', label: 'Scenes', icon: Film },
   { path: '/shows', label: 'Shows', icon: Calendar },
   { path: '/artists', label: 'Artists', icon: Users },
+  { path: '/songs', label: 'Songs', icon: Music },
   { path: '/backstage', label: 'Monitor', icon: Tv },
   { path: '/devices', label: 'Devices', icon: Wifi },
   { path: '/eink', label: 'E-Ink', icon: Monitor },

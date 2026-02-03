@@ -9,6 +9,7 @@ import EInkPage from './pages/EInkPage'
 import ShowsPage from './pages/ShowsPage'
 import ArtistsPage from './pages/ArtistsPage'
 import BackstagePage from './pages/BackstagePage'
+import SongsPage from './pages/SongsPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <Route path="scenes" element={<ScenesPage />} />
           <Route path="shows" element={<ShowsPage />} />
           <Route path="artists" element={<ArtistsPage />} />
+          <Route path="songs" element={<SongsPage />} />
           <Route path="backstage" element={<BackstagePage />} />
           <Route path="devices" element={<DevicesPage />} />
           <Route path="eink" element={<EInkPage />} />
