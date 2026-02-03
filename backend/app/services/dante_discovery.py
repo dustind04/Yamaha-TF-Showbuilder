@@ -36,15 +36,26 @@ class DanteDevice:
 class DanteServiceListener(ServiceListener):
     """Listener for Dante mDNS service announcements."""
 
-    def __init__(self, callback: Callable[[str, DanteDevice], None]):
+    def __init__(self, callback: Callable[[str, DanteDevice], None], async_zc: 'AsyncZeroconf'):
         self.callback = callback
+        self.async_zc = async_zc
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         """Called when a service is discovered."""
-        info = zc.get_service_info(type_, name)
-        if info:
-            device = self._parse_service_info(info)
-            self.callback("add", device)
+        import asyncio
+        asyncio.create_task(self._async_add_service(type_, name))
+
+    async def _async_add_service(self, type_: str, name: str) -> None:
+        """Async handler for service discovery."""
+        try:
+            from zeroconf.asyncio import AsyncServiceInfo
+            info = AsyncServiceInfo(type_, name)
+            await info.async_request(self.async_zc.zeroconf, 3000)
+            if info:
+                device = self._parse_service_info(info)
+                self.callback("add", device)
+        except Exception as e:
+            logger.debug(f"Could not get service info for {name}: {e}")
 
     def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         """Called when a service is removed."""
@@ -53,10 +64,20 @@ class DanteServiceListener(ServiceListener):
 
     def update_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         """Called when a service is updated."""
-        info = zc.get_service_info(type_, name)
-        if info:
-            device = self._parse_service_info(info)
-            self.callback("update", device)
+        import asyncio
+        asyncio.create_task(self._async_update_service(type_, name))
+
+    async def _async_update_service(self, type_: str, name: str) -> None:
+        """Async handler for service updates."""
+        try:
+            from zeroconf.asyncio import AsyncServiceInfo
+            info = AsyncServiceInfo(type_, name)
+            await info.async_request(self.async_zc.zeroconf, 3000)
+            if info:
+                device = self._parse_service_info(info)
+                self.callback("update", device)
+        except Exception as e:
+            logger.debug(f"Could not get service info for {name}: {e}")
 
     def _parse_service_info(self, info: ServiceInfo) -> DanteDevice:
         """Parse mDNS service info into DanteDevice."""
@@ -137,8 +158,8 @@ class DanteDiscoveryService:
 
         self.zeroconf = AsyncZeroconf()
 
-        # Create listener
-        listener = DanteServiceListener(self._on_device_event)
+        # Create listener with async zeroconf reference
+        listener = DanteServiceListener(self._on_device_event, self.zeroconf)
 
         # Browse for each Dante service type
         for service_type in self.DANTE_SERVICE_TYPES:
@@ -157,11 +178,23 @@ class DanteDiscoveryService:
         self._running = False
 
         for browser in self.browsers:
-            browser.cancel()
+            try:
+                await browser.async_cancel()
+            except AttributeError:
+                # Older API - try cancel()
+                try:
+                    browser.cancel()
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.debug(f"Error canceling browser: {e}")
         self.browsers.clear()
 
         if self.zeroconf:
-            await self.zeroconf.async_close()
+            try:
+                await self.zeroconf.async_close()
+            except Exception as e:
+                logger.debug(f"Error closing zeroconf: {e}")
             self.zeroconf = None
 
         logger.info("Dante discovery stopped")
