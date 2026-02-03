@@ -11,7 +11,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage, songs
@@ -120,10 +121,29 @@ app.include_router(backstage.router, prefix="/api/backstage", tags=["Backstage M
 app.include_router(songs.router, prefix="/api/songs", tags=["Songs & Setlists"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
 
+# Mount static files for the UI
+static_dir = Path(__file__).parent.parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Root endpoint - redirect to UI."""
+    return RedirectResponse(url="/ui")
+
+
+@app.get("/ui")
+async def ui():
+    """Serve the main UI."""
+    index_file = static_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file, media_type="text/html")
+    return {"error": "UI not found"}
+
+
+@app.get("/api")
+async def api_root():
+    """API root endpoint."""
     return {
         "name": "Yamaha TF Showbuilder",
         "version": "1.0.0",
