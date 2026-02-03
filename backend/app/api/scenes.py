@@ -362,3 +362,52 @@ async def preview_scene(scene_id: int, db: AsyncSession = Depends(get_db)):
         "mixer_state": scene.mixer_state,
         "eink_labels": scene.eink_labels
     }
+
+
+@router.post("/sync-from-tf")
+async def sync_from_tf_rack(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sync channel data from TF-Rack to database.
+
+    Requests current channel info from the mixer and updates the database.
+    Note: TF-Rack OSC doesn't support bulk state queries, so this triggers
+    a request for each channel. Changes will be received asynchronously.
+    """
+    tf_rack = getattr(request.app.state, 'tf_rack', None)
+    if not tf_rack or not tf_rack.is_connected:
+        raise HTTPException(status_code=503, detail="TF-Rack not connected")
+
+    # Request all channel info - this sends OSC queries
+    # The responses will be handled by the TF-Rack service callbacks
+    tf_rack.request_all_channels()
+
+    # Update database channels with current TF-Rack state
+    # (This uses cached state from any received OSC messages)
+    channels_updated = 0
+    for ch_num in range(1, 33):
+        ch_state = tf_rack.get_channel_state(ch_num)
+        if ch_state:
+            result = await db.execute(
+                select(Channel).where(Channel.channel_number == ch_num)
+            )
+            channel = result.scalar_one_or_none()
+            if channel:
+                if ch_state.name:
+                    channel.name = ch_state.name
+                if ch_state.fader != -90.0:
+                    channel.fader_level = ch_state.fader
+                channel.mute = ch_state.mute
+                channel.on = ch_state.on
+                channel.color = ch_state.color
+                channels_updated += 1
+
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "message": "Sync request sent to TF-Rack",
+        "channels_updated": channels_updated
+    }

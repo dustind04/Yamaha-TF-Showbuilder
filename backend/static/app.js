@@ -131,10 +131,13 @@ function renderChannelStrips() {
     const container = document.getElementById('channel-strips');
     let filtered = state.channels;
 
+    // Use channel_number from API (or number as fallback)
+    const getChNum = (c) => c.channel_number || c.number;
+
     if (state.channelView === 'inputs-1-16') {
-        filtered = state.channels.filter(c => c.number >= 1 && c.number <= 16);
+        filtered = state.channels.filter(c => getChNum(c) >= 1 && getChNum(c) <= 16);
     } else if (state.channelView === 'inputs-17-32') {
-        filtered = state.channels.filter(c => c.number >= 17 && c.number <= 32);
+        filtered = state.channels.filter(c => getChNum(c) >= 17 && getChNum(c) <= 32);
     }
 
     // If no channels, create placeholder channels
@@ -143,38 +146,40 @@ function renderChannelStrips() {
         const end = state.channelView === 'inputs-17-32' ? 32 : 16;
         filtered = [];
         for (let i = start; i <= end; i++) {
-            filtered.push({ id: i, number: i, name: `CH ${i}`, fader_level: -10, muted: false, on: true });
+            filtered.push({ id: i, channel_number: i, name: `CH ${i}`, fader_level: -10, mute: false, on: true });
         }
     }
 
-    container.innerHTML = filtered.map(ch => `
-        <div class="channel-strip" data-channel="${ch.id || ch.number}">
-            <div class="channel-num">CH ${ch.number}</div>
-            <div class="channel-name">${ch.name || `CH ${ch.number}`}</div>
+    container.innerHTML = filtered.map(ch => {
+        const chNum = ch.channel_number || ch.number;
+        return `
+        <div class="channel-strip" data-channel="${ch.id}">
+            <div class="channel-num">CH ${chNum}</div>
+            <div class="channel-name">${ch.name || `CH ${chNum}`}</div>
             <div class="fader-container">
                 <div class="fader-track">
                     <div class="fader-fill" style="height: ${faderToPercent(ch.fader_level)}%"></div>
                     <div class="fader-thumb" style="bottom: calc(${faderToPercent(ch.fader_level)}% - 8px)"
-                         onmousedown="startFaderDrag(event, ${ch.id || ch.number})"></div>
+                         onmousedown="startFaderDrag(event, ${ch.id})"></div>
                 </div>
                 <div class="meter-bar">
-                    <div class="meter-fill" style="height: ${(state.meters[ch.number] || 0)}%"></div>
+                    <div class="meter-fill" style="height: ${(state.meters[chNum] || 0)}%"></div>
                 </div>
             </div>
             <div class="fader-value">${ch.fader_level?.toFixed(1) || '-∞'} dB</div>
             <div class="channel-buttons">
-                <button class="btn btn-sm btn-mute ${ch.muted ? 'active' : ''}"
-                        onclick="toggleMute(${ch.id || ch.number})">M</button>
+                <button class="btn btn-sm btn-mute ${ch.mute ? 'active' : ''}"
+                        onclick="toggleMute(${ch.id})">M</button>
                 <button class="btn btn-sm btn-on ${ch.on !== false ? 'active' : ''}"
-                        onclick="toggleOn(${ch.id || ch.number})">ON</button>
+                        onclick="toggleOn(${ch.id})">ON</button>
             </div>
             <div class="processing-indicators">
                 <div class="proc-dot ${ch.eq_enabled ? 'active' : ''}" title="EQ"></div>
-                <div class="proc-dot ${ch.compressor_enabled ? 'active' : ''}" title="Comp"></div>
+                <div class="proc-dot ${ch.comp_enabled ? 'active' : ''}" title="Comp"></div>
                 <div class="proc-dot ${ch.gate_enabled ? 'active' : ''}" title="Gate"></div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function faderToPercent(db) {
@@ -216,7 +221,7 @@ async function setFaderLevel(channelId, level) {
             method: 'POST',
             body: JSON.stringify({ level: Math.round(level * 10) / 10 })
         });
-        const ch = state.channels.find(c => c.id === channelId || c.number === channelId);
+        const ch = state.channels.find(c => c.id === channelId);
         if (ch) ch.fader_level = level;
         renderChannelStrips();
     } catch (e) {
@@ -227,8 +232,8 @@ async function setFaderLevel(channelId, level) {
 async function toggleMute(channelId) {
     try {
         await api(`/channels/${channelId}/mute`, { method: 'POST' });
-        const ch = state.channels.find(c => c.id === channelId || c.number === channelId);
-        if (ch) ch.muted = !ch.muted;
+        const ch = state.channels.find(c => c.id === channelId);
+        if (ch) ch.mute = !ch.mute;
         renderChannelStrips();
     } catch (e) {
         console.error('Failed to toggle mute', e);
@@ -237,9 +242,10 @@ async function toggleMute(channelId) {
 
 async function toggleOn(channelId) {
     try {
+        const ch = state.channels.find(c => c.id === channelId);
         await api(`/channels/${channelId}`, {
             method: 'PATCH',
-            body: JSON.stringify({ on: !state.channels.find(c => c.id === channelId)?.on })
+            body: JSON.stringify({ on: !ch?.on })
         });
         loadChannels();
     } catch (e) {
@@ -267,13 +273,23 @@ async function loadScenes() {
     }
 }
 
+async function syncFromTFRack() {
+    try {
+        const result = await api('/scenes/sync-from-tf', { method: 'POST' });
+        alert(`Sync complete! ${result.channels_updated} channels updated from TF-Rack.`);
+        loadChannels(); // Refresh channel data
+    } catch (e) {
+        alert('Failed to sync from TF-Rack: ' + e.message);
+    }
+}
+
 function renderScenesList() {
     const container = document.getElementById('scenes-list');
     container.innerHTML = state.scenes.map(s => `
         <div class="scene-item ${state.selectedScene?.id === s.id ? 'selected' : ''}"
              onclick="selectScene(${s.id})">
-            <h4>${s.name || `Scene ${s.number}`}</h4>
-            <div class="scene-num">Scene ${s.number} • Fade: ${s.fade_time || 0}s</div>
+            <h4>${s.name || `Scene ${s.scene_number}`}</h4>
+            <div class="scene-num">Scene ${s.scene_number} • Fade: ${s.fade_time || 0}s</div>
         </div>
     `).join('') || '<p class="placeholder-text">No scenes created</p>';
 }
@@ -292,10 +308,10 @@ function renderSceneDetails() {
         return;
     }
     container.innerHTML = `
-        <h3>${s.name || `Scene ${s.number}`}</h3>
+        <h3>${s.name || `Scene ${s.scene_number}`}</h3>
         <div class="form-group">
             <label>Scene Number</label>
-            <div>${s.number}</div>
+            <div>${s.scene_number}</div>
         </div>
         <div class="form-group">
             <label>Fade Time</label>
@@ -343,7 +359,7 @@ async function deleteScene(id) {
 }
 
 function showCreateSceneModal() {
-    const nextNum = (state.scenes.length > 0 ? Math.max(...state.scenes.map(s => s.number)) : 0) + 1;
+    const nextNum = (state.scenes.length > 0 ? Math.max(...state.scenes.map(s => s.scene_number)) : 0) + 1;
     showModal('Create Scene', `
         <div class="form-group">
             <label>Scene Number</label>
@@ -370,7 +386,7 @@ function showCreateSceneModal() {
 
 async function createScene() {
     const data = {
-        number: parseInt(document.getElementById('scene-number').value),
+        scene_number: parseInt(document.getElementById('scene-number').value),
         name: document.getElementById('scene-name').value,
         fade_time: parseFloat(document.getElementById('scene-fade').value),
         description: document.getElementById('scene-desc').value

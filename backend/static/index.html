@@ -115,7 +115,10 @@
                 <div id="page-scenes" class="page">
                     <div class="page-header">
                         <h2>Scenes</h2>
-                        <button class="btn btn-primary" onclick="showCreateSceneModal()">+ New Scene</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="syncFromTFRack()">Sync from TF-Rack</button>
+                            <button class="btn btn-primary" onclick="showCreateSceneModal()">+ New Scene</button>
+                        </div>
                     </div>
                     <div class="scenes-layout">
                         <div class="scenes-list" id="scenes-list"></div>

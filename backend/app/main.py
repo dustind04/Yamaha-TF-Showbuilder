@@ -17,8 +17,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage, songs
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import init_db, AsyncSessionLocal
 from app.services.tf_rack import TFRackService
+from app.models.channel import Channel, ChannelType
+from sqlalchemy import select
 from app.services.dante_discovery import DanteDiscoveryService
 from app.services.eink_manager import EInkManager
 from app.services.wireless_monitor import wireless_monitor
@@ -38,6 +40,27 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+async def init_default_channels():
+    """Initialize default channels if none exist."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Channel).limit(1))
+        if result.scalar_one_or_none() is None:
+            print("Creating default channels...")
+            # Create 32 input channels
+            for i in range(1, 33):
+                channel = Channel(
+                    channel_number=i,
+                    channel_type=ChannelType.INPUT,
+                    name=f"CH {i}",
+                    fader_level=-10.0,
+                    on=True,
+                    mute=False
+                )
+                db.add(channel)
+            await db.commit()
+            print("Default channels created.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
@@ -46,6 +69,9 @@ async def lifespan(app: FastAPI):
 
     # Initialize database
     await init_db()
+
+    # Initialize default channels
+    await init_default_channels()
 
     # Initialize TF-Rack connection
     app.state.tf_rack = TFRackService(
