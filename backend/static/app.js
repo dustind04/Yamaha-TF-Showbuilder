@@ -75,7 +75,7 @@ async function loadDashboard() {
         document.getElementById('home-tf-status').textContent = tfStatus.connected ? 'Connected' : 'Disconnected';
         document.getElementById('home-tf-status').className = `status-value ${tfStatus.connected ? 'online' : 'offline'}`;
         document.getElementById('home-tf-details').textContent = tfStatus.connected ?
-            `${tfStatus.model || 'TF-Rack'} @ ${tfStatus.ip || 'Unknown'}` : 'Not connected';
+            `TF-Rack @ ${tfStatus.ip_address || 'Unknown'}:${tfStatus.port || 49280}` : 'Not connected';
         document.getElementById('tf-status').className = `status-dot ${tfStatus.connected ? 'online' : 'offline'}`;
     } catch (e) {
         document.getElementById('home-tf-status').textContent = 'Disconnected';
