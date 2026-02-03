@@ -21,6 +21,9 @@ async_session = async_sessionmaker(
     expire_on_commit=False
 )
 
+# Alias for easier imports
+AsyncSessionLocal = async_session
+
 # Create declarative base
 Base = declarative_base()
 
