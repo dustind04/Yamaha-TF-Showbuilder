@@ -149,6 +149,23 @@ async def create_channel(
     return db_channel
 
 
+@router.delete("/{channel_id}")
+async def delete_channel(
+    channel_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a channel."""
+    result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    channel = result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    await db.delete(channel)
+    await db.commit()
+    return {"status": "ok", "deleted": channel_id}
+
+
+@router.put("/{channel_id}", response_model=ChannelResponse)
 @router.patch("/{channel_id}", response_model=ChannelResponse)
 async def update_channel(
     channel_id: int,
@@ -205,6 +222,7 @@ async def update_channel(
     return channel
 
 
+@router.put("/{channel_id}/fader")
 @router.post("/{channel_id}/fader")
 async def set_channel_fader(
     channel_id: int,

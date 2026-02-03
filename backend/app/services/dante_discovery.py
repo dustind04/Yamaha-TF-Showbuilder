@@ -5,12 +5,11 @@ Uses mDNS/DNS-SD to discover Dante audio devices on the network,
 including TIO-1608-D stage boxes and other Dante-enabled equipment.
 """
 
-import asyncio
 import logging
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 from datetime import datetime
-from zeroconf import ServiceBrowser, ServiceListener, Zeroconf, ServiceInfo
+from zeroconf import ServiceListener, Zeroconf, ServiceInfo
 from zeroconf.asyncio import AsyncZeroconf, AsyncServiceBrowser
 
 logger = logging.getLogger(__name__)

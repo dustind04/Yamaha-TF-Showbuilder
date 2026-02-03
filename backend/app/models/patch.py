@@ -4,7 +4,6 @@ Patch/routing models for audio connections.
 
 from enum import Enum
 from sqlalchemy import Column, Integer, String, Enum as SQLEnum, ForeignKey
-from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 

@@ -191,10 +191,11 @@ async def create_dante_subscription(
     )
 
     # Actually create the Dante subscription
-    if hasattr(request.app.state, 'dante'):
-        dante = request.app.state.dante
-        # This would use Dante Controller API to create subscription
-        # For now, just record the intent
+    # TODO: Implement Dante Controller API integration
+    # if hasattr(request.app.state, 'dante'):
+    #     dante = request.app.state.dante
+    #     dante.create_subscription(sub.transmitter_device, sub.transmitter_channel,
+    #                               sub.receiver_device, sub.receiver_channel)
 
     db.add(patch)
     await db.commit()

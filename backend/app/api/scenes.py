@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.scene import Scene, SceneChannel
+from app.models.scene import Scene
 from app.models.channel import Channel
 
 router = APIRouter()
@@ -241,15 +241,16 @@ async def recall_scene(
 
     # Update database channels
     for ch_key, ch_state in scene.mixer_state.items():
-        # Parse channel key
+        # Parse channel key (format: "channeltype_channelnumber")
         parts = ch_key.rsplit('_', 1)
         if len(parts) == 2:
-            ch_type, ch_num = parts[0], int(parts[1])
+            ch_type_str, ch_num = parts[0], int(parts[1])
 
-            # Find channel
+            # Find channel by type and number
             result = await db.execute(
                 select(Channel).where(
-                    Channel.channel_number == ch_num
+                    Channel.channel_number == ch_num,
+                    Channel.channel_type == ch_type_str
                 )
             )
             channel = result.scalar_one_or_none()

@@ -3,7 +3,6 @@ E-ink display models for input labeling.
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
-from sqlalchemy.sql import func
 from app.core.database import Base
 
 

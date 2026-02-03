@@ -7,13 +7,12 @@ This application provides API control for:
 - E-ink display labels
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import channels, patches, scenes, devices, eink, websocket, shows, presets, backstage
 from app.core.config import settings
@@ -22,6 +21,20 @@ from app.services.tf_rack import TFRackService
 from app.services.dante_discovery import DanteDiscoveryService
 from app.services.eink_manager import EInkManager
 from app.services.wireless_monitor import wireless_monitor
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # Note: Strict-Transport-Security should only be added when running HTTPS
+        return response
 
 
 @asynccontextmanager
@@ -91,6 +104,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security headers
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Include API routers
 app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])

@@ -4,7 +4,6 @@ Channel models for TF-Rack inputs and outputs.
 
 from enum import Enum
 from sqlalchemy import Column, Integer, String, Float, Boolean, JSON, Enum as SQLEnum
-from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 

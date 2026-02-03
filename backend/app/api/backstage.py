@@ -10,7 +10,7 @@ Provides information displays for artists including:
 Inspired by Micboard project for wireless microphone monitoring.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from pydantic import BaseModel

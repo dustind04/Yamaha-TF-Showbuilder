@@ -22,7 +22,7 @@ class ChannelState:
     name: str = ""
     color: str = "white"
     icon: str = ""
-    fader: float = -float('inf')
+    fader: float = -90.0  # dB, -90 (off) to +10
     pan: float = 0.0
     mute: bool = False
     on: bool = True
@@ -449,7 +449,7 @@ class TFRackService:
     def _osc_to_db(value: float) -> float:
         """Convert OSC fader value (0-1) to dB."""
         if value <= 0:
-            return -float('inf')
+            return -90.0  # Off position
         elif value >= 1:
             return 10.0
         else:
