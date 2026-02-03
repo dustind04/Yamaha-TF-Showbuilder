@@ -213,10 +213,19 @@ class TFRackService:
             self.client = SimpleUDPClient(self.host, self.port)
 
             # Create OSC server for receiving responses
-            self.server = await AsyncIOOSCUDPServer.create(
-                ("0.0.0.0", self.port + 1),
-                self.dispatcher
-            )
+            # Note: We use a simple approach that works with newer python-osc versions
+            try:
+                # Try to create server for receiving responses
+                self.server = AsyncIOOSCUDPServer(
+                    ("0.0.0.0", self.port + 1),
+                    self.dispatcher,
+                    asyncio.get_event_loop()
+                )
+                self.server.serve()
+            except Exception as server_error:
+                # Server creation is optional - we can still send commands
+                logger.warning(f"Could not create OSC receive server: {server_error}")
+                self.server = None
 
             # Send sync request to verify connection
             self.client.send_message("/info", [])
