@@ -98,21 +98,28 @@
                     <div id="home-dante-devices" class="device-grid"></div>
                 </div>
 
-                <!-- Mixer Page -->
+                <!-- Inputs/Outputs Page -->
                 <div id="page-mixer" class="page">
                     <div class="page-header">
-                        <h2>Mixer</h2>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button class="btn btn-primary" onclick="syncFromTFRack()">⬇ Pull from TF-Rack</button>
-                            <button class="btn btn-secondary" onclick="pushToTFRack()">⬆ Push to TF-Rack</button>
-                            <div class="view-controls" style="margin-left: 1rem;">
-                                <button class="btn btn-secondary active" data-view="inputs-1-16">1-16</button>
-                                <button class="btn btn-secondary" data-view="inputs-17-32">17-32</button>
-                                <button class="btn btn-secondary" data-view="all">All</button>
-                            </div>
+                        <h2>Inputs / Outputs</h2>
+                        <button class="btn btn-primary" onclick="syncInputsFromTF()">⬇ Sync from TF-Rack</button>
+                    </div>
+
+                    <!-- Inputs Section -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem;">Input Channels</h3>
+                        <div id="inputs-grid" class="inputs-grid">
+                            <!-- Populated by JS -->
                         </div>
                     </div>
-                    <div id="channel-strips" class="channel-strips"></div>
+
+                    <!-- Outputs Section -->
+                    <div class="card">
+                        <h3 style="margin-bottom: 1rem;">Output Buses</h3>
+                        <div id="outputs-grid" class="outputs-grid">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Scenes Page -->

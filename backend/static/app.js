@@ -121,147 +121,91 @@ async function loadChannels() {
     try {
         const channels = await api('/channels/');
         state.channels = channels;
-        renderChannelStrips();
+        renderInputsOutputs();
     } catch (e) {
-        document.getElementById('channel-strips').innerHTML = '<p class="placeholder-text">Failed to load channels</p>';
+        document.getElementById('inputs-grid').innerHTML = '<p class="placeholder-text">Failed to load channels</p>';
     }
 }
 
-function renderChannelStrips() {
-    const container = document.getElementById('channel-strips');
-    let filtered = state.channels;
+function renderInputsOutputs() {
+    // Render Input Channels
+    const inputsContainer = document.getElementById('inputs-grid');
+    if (inputsContainer) {
+        const inputs = state.channels.filter(c => (c.channel_number || c.number) <= 32);
 
-    // Use channel_number from API (or number as fallback)
-    const getChNum = (c) => c.channel_number || c.number;
-
-    if (state.channelView === 'inputs-1-16') {
-        filtered = state.channels.filter(c => getChNum(c) >= 1 && getChNum(c) <= 16);
-    } else if (state.channelView === 'inputs-17-32') {
-        filtered = state.channels.filter(c => getChNum(c) >= 17 && getChNum(c) <= 32);
-    }
-
-    // If no channels, create placeholder channels
-    if (filtered.length === 0) {
-        const start = state.channelView === 'inputs-17-32' ? 17 : 1;
-        const end = state.channelView === 'inputs-17-32' ? 32 : 16;
-        filtered = [];
-        for (let i = start; i <= end; i++) {
-            filtered.push({ id: i, channel_number: i, name: `CH ${i}`, fader_level: -10, mute: false, on: true });
+        if (inputs.length === 0) {
+            // Create placeholder inputs if none exist
+            let html = '';
+            for (let i = 1; i <= 32; i++) {
+                html += `
+                    <div class="input-item unused">
+                        <div class="ch-number">CH ${i}</div>
+                        <div class="ch-name">---</div>
+                    </div>
+                `;
+            }
+            inputsContainer.innerHTML = html;
+        } else {
+            inputsContainer.innerHTML = inputs.map(ch => {
+                const chNum = ch.channel_number || ch.number;
+                const hasName = ch.name && ch.name !== `CH ${chNum}`;
+                return `
+                    <div class="input-item ${hasName ? 'has-signal' : 'unused'}">
+                        <div class="ch-number">CH ${chNum}</div>
+                        <div class="ch-name">${ch.name || '---'}</div>
+                    </div>
+                `;
+            }).join('');
         }
     }
 
-    container.innerHTML = filtered.map(ch => {
-        const chNum = ch.channel_number || ch.number;
-        return `
-        <div class="channel-strip" data-channel="${ch.id}">
-            <div class="channel-num">CH ${chNum}</div>
-            <div class="channel-name">${ch.name || `CH ${chNum}`}</div>
-            <div class="fader-container">
-                <div class="fader-track">
-                    <div class="fader-fill" style="height: ${faderToPercent(ch.fader_level)}%"></div>
-                    <div class="fader-thumb" style="bottom: calc(${faderToPercent(ch.fader_level)}% - 8px)"
-                         onmousedown="startFaderDrag(event, ${ch.id})"></div>
-                </div>
-                <div class="meter-bar">
-                    <div class="meter-fill" style="height: ${(state.meters[chNum] || 0)}%"></div>
-                </div>
+    // Render Output Buses
+    const outputsContainer = document.getElementById('outputs-grid');
+    if (outputsContainer) {
+        // TF-Rack has: Stereo Out, 20 Aux buses, 4 Matrix outputs
+        const outputs = [
+            { name: 'STEREO L/R', type: 'main' },
+            { name: 'AUX 1', type: 'aux' },
+            { name: 'AUX 2', type: 'aux' },
+            { name: 'AUX 3', type: 'aux' },
+            { name: 'AUX 4', type: 'aux' },
+            { name: 'AUX 5', type: 'aux' },
+            { name: 'AUX 6', type: 'aux' },
+            { name: 'AUX 7', type: 'aux' },
+            { name: 'AUX 8', type: 'aux' },
+            { name: 'AUX 9/10', type: 'aux' },
+            { name: 'AUX 11/12', type: 'aux' },
+            { name: 'AUX 13/14', type: 'aux' },
+            { name: 'AUX 15/16', type: 'aux' },
+            { name: 'AUX 17/18', type: 'aux' },
+            { name: 'AUX 19/20', type: 'aux' },
+            { name: 'MATRIX 1', type: 'matrix' },
+            { name: 'MATRIX 2', type: 'matrix' },
+            { name: 'MATRIX 3', type: 'matrix' },
+            { name: 'MATRIX 4', type: 'matrix' },
+        ];
+
+        outputsContainer.innerHTML = outputs.map(out => `
+            <div class="output-item">
+                <div class="ch-number">${out.type.toUpperCase()}</div>
+                <div class="ch-name">${out.name}</div>
             </div>
-            <div class="fader-value">${ch.fader_level?.toFixed(1) || '-∞'} dB</div>
-            <div class="channel-buttons">
-                <button class="btn btn-sm btn-mute ${ch.mute ? 'active' : ''}"
-                        onclick="toggleMute(${ch.id})">M</button>
-                <button class="btn btn-sm btn-on ${ch.on !== false ? 'active' : ''}"
-                        onclick="toggleOn(${ch.id})">ON</button>
-            </div>
-            <div class="processing-indicators">
-                <div class="proc-dot ${ch.eq_enabled ? 'active' : ''}" title="EQ"></div>
-                <div class="proc-dot ${ch.comp_enabled ? 'active' : ''}" title="Comp"></div>
-                <div class="proc-dot ${ch.gate_enabled ? 'active' : ''}" title="Gate"></div>
-            </div>
-        </div>
-    `}).join('');
-}
-
-function faderToPercent(db) {
-    if (db === null || db === undefined || db <= -90) return 0;
-    if (db >= 10) return 100;
-    return ((db + 90) / 100) * 100;
-}
-
-function percentToFader(percent) {
-    return (percent / 100) * 100 - 90;
-}
-
-let draggingFader = null;
-function startFaderDrag(event, channelId) {
-    draggingFader = { channelId, startY: event.clientY };
-    document.addEventListener('mousemove', onFaderDrag);
-    document.addEventListener('mouseup', stopFaderDrag);
-}
-
-function onFaderDrag(event) {
-    if (!draggingFader) return;
-    const track = event.target.closest('.fader-track');
-    if (!track) return;
-    const rect = track.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(100, 100 - ((event.clientY - rect.top) / rect.height) * 100));
-    const db = percentToFader(percent);
-    setFaderLevel(draggingFader.channelId, db);
-}
-
-function stopFaderDrag() {
-    draggingFader = null;
-    document.removeEventListener('mousemove', onFaderDrag);
-    document.removeEventListener('mouseup', stopFaderDrag);
-}
-
-async function setFaderLevel(channelId, level) {
-    try {
-        await api(`/channels/${channelId}/fader`, {
-            method: 'POST',
-            body: JSON.stringify({ level: Math.round(level * 10) / 10 })
-        });
-        const ch = state.channels.find(c => c.id === channelId);
-        if (ch) ch.fader_level = level;
-        renderChannelStrips();
-    } catch (e) {
-        console.error('Failed to set fader', e);
+        `).join('');
     }
 }
 
-async function toggleMute(channelId) {
+async function syncInputsFromTF() {
     try {
-        await api(`/channels/${channelId}/mute`, { method: 'POST' });
-        const ch = state.channels.find(c => c.id === channelId);
-        if (ch) ch.mute = !ch.mute;
-        renderChannelStrips();
-    } catch (e) {
-        console.error('Failed to toggle mute', e);
-    }
-}
-
-async function toggleOn(channelId) {
-    try {
-        const ch = state.channels.find(c => c.id === channelId);
-        await api(`/channels/${channelId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ on: !ch?.on })
-        });
+        const result = await api('/scenes/sync-from-tf', { method: 'POST' });
+        alert(`Sync complete! ${result.channels_updated} channels updated from TF-Rack.`);
         loadChannels();
     } catch (e) {
-        console.error('Failed to toggle on', e);
+        alert('Failed to sync from TF-Rack: ' + e.message);
     }
 }
 
-// Channel view controls
-document.querySelectorAll('.view-controls .btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.view-controls .btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.channelView = btn.dataset.view;
-        renderChannelStrips();
-    });
-});
+// Legacy function stub for compatibility
+function renderChannelStrips() { renderInputsOutputs(); }
 
 // ============== SCENES ==============
 async function loadScenes() {

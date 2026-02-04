@@ -1004,6 +1004,43 @@ select.input {
     margin-right: 0.5rem;
 }
 
+/* Inputs/Outputs Grid */
+.inputs-grid, .outputs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+
+.input-item, .output-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.input-item .ch-number, .output-item .ch-number {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.input-item .ch-name, .output-item .ch-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.input-item.has-signal {
+    border-color: var(--accent-green);
+}
+
+.input-item.unused {
+    opacity: 0.5;
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
