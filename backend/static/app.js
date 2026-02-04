@@ -283,6 +283,16 @@ async function syncFromTFRack() {
     }
 }
 
+async function pushToTFRack() {
+    if (!confirm('Push all current channel settings to TF-Rack?')) return;
+    try {
+        const result = await api('/channels/push-to-tf', { method: 'POST' });
+        alert(`Push complete! ${result.channels_pushed} channels sent to TF-Rack.`);
+    } catch (e) {
+        alert('Failed to push to TF-Rack: ' + e.message);
+    }
+}
+
 function renderScenesList() {
     const container = document.getElementById('scenes-list');
     container.innerHTML = state.scenes.map(s => `

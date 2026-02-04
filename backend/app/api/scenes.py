@@ -390,16 +390,13 @@ async def sync_from_tf_rack(
     Sync channel data from TF-Rack to database.
 
     Requests current channel info from the mixer and updates the database.
-    Note: TF-Rack OSC doesn't support bulk state queries, so this triggers
-    a request for each channel. Changes will be received asynchronously.
     """
     tf_rack = getattr(request.app.state, 'tf_rack', None)
     if not tf_rack or not tf_rack.is_connected:
         raise HTTPException(status_code=503, detail="TF-Rack not connected")
 
-    # Request all channel info - this sends OSC queries
-    # The responses will be handled by the TF-Rack service callbacks
-    tf_rack.request_all_channels()
+    # Request all channel info and wait for responses
+    await tf_rack.request_all_channels_async()
 
     # Update database channels with current TF-Rack state
     # (This uses cached state from any received OSC messages)

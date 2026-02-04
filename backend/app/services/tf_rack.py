@@ -216,7 +216,10 @@ class TFRackService:
         """Handle response from TF-Rack."""
         logger.debug(f"TF-Rack response: {response}")
 
-        if response.startswith("OK"):
+        if response.startswith("OK get"):
+            # Response to a get command - parse the value
+            self._handle_get_response(response)
+        elif response.startswith("OK"):
             # Command acknowledged
             pass
         elif response.startswith("NOTIFY"):
@@ -228,6 +231,34 @@ class TFRackService:
         # Notify callbacks
         for callback in self._callbacks.get("response", []):
             callback(response)
+
+    def _handle_get_response(self, response: str):
+        """Handle responses to get commands."""
+        # Format: OK get MIXER:Current/InCh/Fader/Level 0 0 -1000
+        try:
+            parts = response.split()
+            if len(parts) >= 6 and "InCh/Fader/Level" in response:
+                ch = int(parts[4]) + 1  # Convert 0-indexed to 1-indexed
+                value = int(parts[6])
+                db = value / 100.0
+                if ch in self._channel_states:
+                    self._channel_states[ch].fader = db
+                    logger.debug(f"CH{ch} fader: {db}dB")
+            elif len(parts) >= 6 and "InCh/Fader/On" in response:
+                ch = int(parts[4]) + 1
+                value = int(parts[6])
+                if ch in self._channel_states:
+                    self._channel_states[ch].on = bool(value)
+                    logger.debug(f"CH{ch} on: {bool(value)}")
+            elif len(parts) >= 6 and "InCh/Label/Name" in response:
+                ch = int(parts[4]) + 1
+                # Name is the last part, may contain spaces if quoted
+                name = parts[6].strip('"') if len(parts) > 6 else ""
+                if ch in self._channel_states:
+                    self._channel_states[ch].name = name
+                    logger.debug(f"CH{ch} name: {name}")
+        except Exception as e:
+            logger.debug(f"Could not parse get response: {e}")
 
     def _handle_notify(self, response: str):
         """Handle NOTIFY messages (parameter changes from console)."""
@@ -635,7 +666,10 @@ class TFRackService:
         for ch in range(self.INPUT_CHANNELS):
             await self._send_command(f"get MIXER:Current/InCh/Fader/Level {ch} 0")
             await self._send_command(f"get MIXER:Current/InCh/Fader/On {ch} 0")
-            await asyncio.sleep(0.01)  # Small delay to not overwhelm
+            await self._send_command(f"get MIXER:Current/InCh/Label/Name {ch} 0")
+            await asyncio.sleep(0.02)  # Small delay to not overwhelm
+        # Wait for responses to come back
+        await asyncio.sleep(0.5)
 
     # ========== EQ/Dynamics Stubs (for API compatibility) ==========
 

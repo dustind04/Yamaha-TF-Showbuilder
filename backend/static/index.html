@@ -102,10 +102,14 @@
                 <div id="page-mixer" class="page">
                     <div class="page-header">
                         <h2>Mixer</h2>
-                        <div class="view-controls">
-                            <button class="btn btn-secondary active" data-view="inputs-1-16">1-16</button>
-                            <button class="btn btn-secondary" data-view="inputs-17-32">17-32</button>
-                            <button class="btn btn-secondary" data-view="all">All</button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn btn-primary" onclick="syncFromTFRack()">⬇ Pull from TF-Rack</button>
+                            <button class="btn btn-secondary" onclick="pushToTFRack()">⬆ Push to TF-Rack</button>
+                            <div class="view-controls" style="margin-left: 1rem;">
+                                <button class="btn btn-secondary active" data-view="inputs-1-16">1-16</button>
+                                <button class="btn btn-secondary" data-view="inputs-17-32">17-32</button>
+                                <button class="btn btn-secondary" data-view="all">All</button>
+                            </div>
                         </div>
                     </div>
                     <div id="channel-strips" class="channel-strips"></div>

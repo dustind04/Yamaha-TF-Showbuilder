@@ -375,3 +375,39 @@ async def update_channel_gate(
 
     await db.commit()
     return {"status": "ok"}
+
+
+@router.post("/push-to-tf")
+async def push_channels_to_tf(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Push all channel settings from database to TF-Rack."""
+    tf_rack = request.app.state.tf_rack
+    if not tf_rack or not tf_rack.is_connected:
+        raise HTTPException(status_code=503, detail="TF-Rack not connected")
+
+    result = await db.execute(select(Channel).order_by(Channel.channel_number))
+    channels = result.scalars().all()
+
+    pushed = 0
+    for channel in channels:
+        ch_num = channel.channel_number
+        if ch_num < 1 or ch_num > 32:
+            continue
+
+        # Push fader level
+        if channel.fader_level is not None:
+            tf_rack.set_fader(ch_num, channel.fader_level)
+
+        # Push on/mute state
+        if channel.on is not None:
+            tf_rack.set_channel_on(ch_num, channel.on)
+
+        # Push name
+        if channel.name:
+            tf_rack.set_name(ch_num, channel.name)
+
+        pushed += 1
+
+    return {"status": "ok", "channels_pushed": pushed}
