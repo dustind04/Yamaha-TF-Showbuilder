@@ -1,17 +1,25 @@
 """
-Yamaha TF-Rack OSC Protocol Service
+Yamaha TF-Rack RCP Protocol Service
 
-Implements communication with Yamaha TF series mixers using OSC protocol.
-Based on Yamaha TF StageMix protocol documentation.
+Implements communication with Yamaha TF series mixers using the RCP (Remote Control Protocol)
+over TCP. Based on community documentation and Bitfocus Companion implementation.
+
+Protocol Reference:
+- TCP port 49280
+- Text-based commands, newline delimited
+- Commands: set, get, ssrecall_ex
+- Responses: OK, OKm, NOTIFY, ERROR
+
+Sources:
+- https://github.com/BrenekH/yamaha-rcp-docs
+- https://github.com/Dom-TC/Yamaha-TF-Control
+- https://github.com/bitfocus/companion-module-yamaha-rcp
 """
 
 import asyncio
 import logging
 from typing import Optional, Dict, Any, Callable, List
 from dataclasses import dataclass, field
-from pythonosc.udp_client import SimpleUDPClient
-from pythonosc.osc_server import AsyncIOOSCUDPServer
-from pythonosc.dispatcher import Dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -38,22 +46,17 @@ class ChannelState:
 
 class TFRackService:
     """
-    Service for communicating with Yamaha TF-Rack via OSC.
+    Service for communicating with Yamaha TF-Rack via RCP (Remote Control Protocol).
 
-    OSC Address Reference (TF Series):
-    - /ch/{ch}/mix/fader - Channel fader level
-    - /ch/{ch}/mix/on - Channel on/off
-    - /ch/{ch}/mix/pan - Channel pan
-    - /ch/{ch}/config/name - Channel name
-    - /ch/{ch}/config/color - Channel color
-    - /ch/{ch}/preamp/gain - Input gain
-    - /ch/{ch}/preamp/+48v - Phantom power
-    - /ch/{ch}/eq/on - EQ on/off
-    - /ch/{ch}/eq/{band}/freq - EQ frequency
-    - /ch/{ch}/eq/{band}/gain - EQ gain
-    - /ch/{ch}/eq/{band}/q - EQ Q
-    - /ch/{ch}/dyn/on - Compressor on/off
-    - /ch/{ch}/gate/on - Gate on/off
+    RCP Protocol Reference (TF Series):
+    - TCP connection on port 49280
+    - Commands are text-based, terminated with newline
+
+    Command Examples:
+    - set MIXER:Current/InCh/Fader/Level {ch} 0 {value} - Set fader (value = dB * 100)
+    - set MIXER:Current/InCh/Fader/On {ch} 0 {0|1} - Channel on/off
+    - ssrecall_ex scene_a {num} - Recall scene from bank A (0-99)
+    - ssrecall_ex scene_b {num} - Recall scene from bank B (0-99)
     """
 
     # Channel count constants for TF-Rack
@@ -63,208 +66,223 @@ class TFRackService:
     MATRIX_OUTPUTS = 4
     DCA_GROUPS = 8
 
-    # OSC address patterns
-    OSC_PATTERNS = {
-        "fader": "/ch/{ch}/mix/fader",
-        "on": "/ch/{ch}/mix/on",
-        "pan": "/ch/{ch}/mix/pan",
-        "mute": "/ch/{ch}/mix/mute",
-        "name": "/ch/{ch}/config/name",
-        "color": "/ch/{ch}/config/color",
-        "icon": "/ch/{ch}/config/icon",
-        "gain": "/ch/{ch}/preamp/gain",
-        "phantom": "/ch/{ch}/preamp/+48v",
-        "phase": "/ch/{ch}/preamp/polarity",
-        "eq_on": "/ch/{ch}/eq/on",
-        "eq_hpf_on": "/ch/{ch}/eq/hpf/on",
-        "eq_hpf_freq": "/ch/{ch}/eq/hpf/freq",
-        "eq_low_freq": "/ch/{ch}/eq/1/freq",
-        "eq_low_gain": "/ch/{ch}/eq/1/gain",
-        "eq_low_q": "/ch/{ch}/eq/1/q",
-        "eq_low_type": "/ch/{ch}/eq/1/type",
-        "eq_lowmid_freq": "/ch/{ch}/eq/2/freq",
-        "eq_lowmid_gain": "/ch/{ch}/eq/2/gain",
-        "eq_lowmid_q": "/ch/{ch}/eq/2/q",
-        "eq_highmid_freq": "/ch/{ch}/eq/3/freq",
-        "eq_highmid_gain": "/ch/{ch}/eq/3/gain",
-        "eq_highmid_q": "/ch/{ch}/eq/3/q",
-        "eq_high_freq": "/ch/{ch}/eq/4/freq",
-        "eq_high_gain": "/ch/{ch}/eq/4/gain",
-        "eq_high_q": "/ch/{ch}/eq/4/q",
-        "eq_high_type": "/ch/{ch}/eq/4/type",
-        "comp_on": "/ch/{ch}/dyn/on",
-        "comp_thresh": "/ch/{ch}/dyn/thresh",
-        "comp_ratio": "/ch/{ch}/dyn/ratio",
-        "comp_attack": "/ch/{ch}/dyn/attack",
-        "comp_release": "/ch/{ch}/dyn/release",
-        "comp_gain": "/ch/{ch}/dyn/gain",
-        "comp_knee": "/ch/{ch}/dyn/knee",
-        "gate_on": "/ch/{ch}/gate/on",
-        "gate_thresh": "/ch/{ch}/gate/thresh",
-        "gate_range": "/ch/{ch}/gate/range",
-        "gate_attack": "/ch/{ch}/gate/attack",
-        "gate_hold": "/ch/{ch}/gate/hold",
-        "gate_release": "/ch/{ch}/gate/release",
-        "send": "/ch/{ch}/mix/{aux}/level",
-        "send_on": "/ch/{ch}/mix/{aux}/on",
+    # RCP command patterns (channel numbers are 0-indexed in protocol)
+    RCP_COMMANDS = {
+        "fader_level": "set MIXER:Current/InCh/Fader/Level {ch} 0 {value}",
+        "channel_on": "set MIXER:Current/InCh/Fader/On {ch} 0 {value}",
+        "channel_name": "set MIXER:Current/InCh/Label/Name {ch} 0 \"{value}\"",
+        "pan": "set MIXER:Current/InCh/ToSt/Pan {ch} 0 {value}",
+        "gain": "set MIXER:Current/InCh/Preamp/Gain {ch} 0 {value}",
+        "phantom": "set MIXER:Current/InCh/Preamp/48V {ch} 0 {value}",
+        "eq_on": "set MIXER:Current/InCh/Eq/On {ch} 0 {value}",
+        "comp_on": "set MIXER:Current/InCh/Dyn1/On {ch} 0 {value}",
+        "gate_on": "set MIXER:Current/InCh/Dyn2/On {ch} 0 {value}",
+        "scene_recall_a": "ssrecall_ex scene_a {scene}",
+        "scene_recall_b": "ssrecall_ex scene_b {scene}",
+        "scene_store_a": "ssstore_ex scene_a {scene}",
+        "scene_store_b": "ssstore_ex scene_b {scene}",
+        "dca_fader": "set MIXER:Current/DcaCh/Fader/Level {ch} 0 {value}",
+        "dca_on": "set MIXER:Current/DcaCh/Fader/On {ch} 0 {value}",
+        "get_fader": "get MIXER:Current/InCh/Fader/Level {ch} 0",
+        "get_channel_on": "get MIXER:Current/InCh/Fader/On {ch} 0",
     }
 
-    def __init__(self, host: str, port: int = 49280):
+    def __init__(self, host: str = "192.168.1.100", port: int = 49280):
         """
         Initialize TF-Rack service.
 
         Args:
             host: IP address of TF-Rack
-            port: OSC port (default 49280)
+            port: TCP port (default 49280)
         """
         self.host = host
         self.port = port
-        self.client: Optional[SimpleUDPClient] = None
-        self.server: Optional[AsyncIOOSCUDPServer] = None
-        self.dispatcher = Dispatcher()
+        self.reader: Optional[asyncio.StreamReader] = None
+        self.writer: Optional[asyncio.StreamWriter] = None
         self.is_connected = False
         self._callbacks: Dict[str, List[Callable]] = {}
         self._channel_states: Dict[int, ChannelState] = {}
+        self._lock = asyncio.Lock()
+        self._receive_task: Optional[asyncio.Task] = None
 
         # Initialize channel states
         for i in range(1, self.INPUT_CHANNELS + 1):
             self._channel_states[i] = ChannelState()
 
-        # Set up OSC message handlers
-        self._setup_handlers()
-
-    def _setup_handlers(self):
-        """Set up OSC message dispatchers."""
-        # Catch-all handler for debugging
-        self.dispatcher.set_default_handler(self._handle_message)
-
-        # Specific handlers for channel parameters
-        self.dispatcher.map("/ch/*/mix/fader", self._handle_fader)
-        self.dispatcher.map("/ch/*/mix/on", self._handle_on)
-        self.dispatcher.map("/ch/*/config/name", self._handle_name)
-        self.dispatcher.map("/ch/*/config/color", self._handle_color)
-        self.dispatcher.map("/meters/*", self._handle_meters)
-
-    def _handle_message(self, address: str, *args):
-        """Default message handler."""
-        logger.debug(f"OSC received: {address} = {args}")
-        # Notify callbacks
-        for callback in self._callbacks.get("message", []):
-            callback(address, args)
-
-    def _handle_fader(self, address: str, *args):
-        """Handle fader level changes."""
-        ch = self._extract_channel(address)
-        if ch and args:
-            self._channel_states[ch].fader = self._osc_to_db(args[0])
-            self._notify_change("fader", ch, self._channel_states[ch].fader)
-
-    def _handle_on(self, address: str, *args):
-        """Handle channel on/off changes."""
-        ch = self._extract_channel(address)
-        if ch and args:
-            self._channel_states[ch].on = bool(args[0])
-            self._notify_change("on", ch, self._channel_states[ch].on)
-
-    def _handle_name(self, address: str, *args):
-        """Handle channel name changes."""
-        ch = self._extract_channel(address)
-        if ch and args:
-            self._channel_states[ch].name = str(args[0])
-            self._notify_change("name", ch, self._channel_states[ch].name)
-
-    def _handle_color(self, address: str, *args):
-        """Handle channel color changes."""
-        ch = self._extract_channel(address)
-        if ch and args:
-            self._channel_states[ch].color = self._color_index_to_name(args[0])
-            self._notify_change("color", ch, self._channel_states[ch].color)
-
-    def _handle_meters(self, address: str, *args):
-        """Handle meter data."""
-        self._notify_change("meters", 0, args)
-
-    def _extract_channel(self, address: str) -> Optional[int]:
-        """Extract channel number from OSC address."""
-        parts = address.split("/")
-        try:
-            if len(parts) >= 3 and parts[1] == "ch":
-                return int(parts[2])
-        except ValueError:
-            pass
-        return None
-
-    def _notify_change(self, param: str, channel: int, value: Any):
-        """Notify registered callbacks of parameter changes."""
-        for callback in self._callbacks.get(param, []):
-            callback(channel, value)
-        for callback in self._callbacks.get("any", []):
-            callback(param, channel, value)
-
     async def connect(self) -> bool:
         """
-        Establish connection to TF-Rack.
+        Establish TCP connection to TF-Rack.
 
         Returns:
             True if connection successful
         """
         try:
-            # Create OSC client for sending messages
-            self.client = SimpleUDPClient(self.host, self.port)
+            logger.info(f"Connecting to TF-Rack at {self.host}:{self.port}...")
+            print(f"Connecting to TF-Rack at {self.host}:{self.port}...")
 
-            # Create OSC server for receiving responses
-            # Note: We use a simple approach that works with newer python-osc versions
-            try:
-                # Try to create server for receiving responses
-                # Use get_running_loop() since we're inside an async context
-                loop = asyncio.get_running_loop()
-                self.server = AsyncIOOSCUDPServer(
-                    ("0.0.0.0", self.port + 1),
-                    self.dispatcher,
-                    loop
-                )
-                # serve() returns a coroutine that needs to be awaited
-                transport, protocol = await self.server.create_serve_endpoint()
-                logger.info(f"OSC receive server listening on port {self.port + 1}")
-            except Exception as server_error:
-                # Server creation is optional - we can still send commands
-                logger.warning(f"Could not create OSC receive server: {server_error}")
-                self.server = None
-
-            # Send sync request to verify connection
-            self.client.send_message("/info", [])
+            # Create TCP connection with timeout
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.port),
+                timeout=5.0
+            )
 
             self.is_connected = True
             logger.info(f"Connected to TF-Rack at {self.host}:{self.port}")
+            print(f"✓ Connected to TF-Rack at {self.host}:{self.port}")
 
-            # Start sync task
-            asyncio.create_task(self._sync_loop())
+            # Start background task to receive responses
+            self._receive_task = asyncio.create_task(self._receive_loop())
 
             return True
 
+        except asyncio.TimeoutError:
+            logger.error(f"Connection to TF-Rack timed out ({self.host}:{self.port})")
+            print(f"✗ Connection to TF-Rack timed out ({self.host}:{self.port})")
+            self.is_connected = False
+            return False
+        except ConnectionRefusedError:
+            logger.error(f"Connection refused by TF-Rack ({self.host}:{self.port})")
+            print(f"✗ Connection refused by TF-Rack ({self.host}:{self.port})")
+            self.is_connected = False
+            return False
+        except OSError as e:
+            logger.error(f"Network error connecting to TF-Rack: {e}")
+            print(f"✗ Network error connecting to TF-Rack: {e}")
+            self.is_connected = False
+            return False
         except Exception as e:
             logger.error(f"Failed to connect to TF-Rack: {e}")
+            print(f"✗ Failed to connect to TF-Rack: {e}")
             self.is_connected = False
             return False
 
     async def disconnect(self):
         """Disconnect from TF-Rack."""
         self.is_connected = False
-        if self.server:
-            # Close server
-            pass
+
+        if self._receive_task:
+            self._receive_task.cancel()
+            try:
+                await self._receive_task
+            except asyncio.CancelledError:
+                pass
+            self._receive_task = None
+
+        if self.writer:
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception:
+                pass
+            self.writer = None
+            self.reader = None
+
         logger.info("Disconnected from TF-Rack")
 
-    async def _sync_loop(self):
-        """Periodic sync with TF-Rack."""
-        while self.is_connected:
+    async def _receive_loop(self):
+        """Background task to receive and process responses from TF-Rack."""
+        try:
+            while self.is_connected and self.reader:
+                try:
+                    line = await asyncio.wait_for(
+                        self.reader.readline(),
+                        timeout=30.0
+                    )
+                    if not line:
+                        logger.warning("TF-Rack connection closed")
+                        break
+
+                    response = line.decode('utf-8').strip()
+                    if response:
+                        self._handle_response(response)
+
+                except asyncio.TimeoutError:
+                    # Send keepalive
+                    pass
+                except Exception as e:
+                    logger.error(f"Error receiving from TF-Rack: {e}")
+                    break
+
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"Receive loop error: {e}")
+        finally:
+            if self.is_connected:
+                self.is_connected = False
+                logger.warning("TF-Rack connection lost")
+
+    def _handle_response(self, response: str):
+        """Handle response from TF-Rack."""
+        logger.debug(f"TF-Rack response: {response}")
+
+        if response.startswith("OK"):
+            # Command acknowledged
+            pass
+        elif response.startswith("NOTIFY"):
+            # Parameter change notification
+            self._handle_notify(response)
+        elif response.startswith("ERROR"):
+            logger.error(f"TF-Rack error: {response}")
+
+        # Notify callbacks
+        for callback in self._callbacks.get("response", []):
+            callback(response)
+
+    def _handle_notify(self, response: str):
+        """Handle NOTIFY messages (parameter changes from console)."""
+        # Parse NOTIFY messages to update local state
+        # Format: NOTIFY set MIXER:Current/InCh/Fader/Level 0 0 -1000
+        try:
+            parts = response.split()
+            if len(parts) >= 5 and "InCh/Fader/Level" in response:
+                ch = int(parts[3]) + 1  # Convert 0-indexed to 1-indexed
+                value = int(parts[5])
+                db = value / 100.0
+                if ch in self._channel_states:
+                    self._channel_states[ch].fader = db
+                    self._notify_change("fader", ch, db)
+            elif len(parts) >= 5 and "InCh/Fader/On" in response:
+                ch = int(parts[3]) + 1
+                value = int(parts[5])
+                if ch in self._channel_states:
+                    self._channel_states[ch].on = bool(value)
+                    self._notify_change("on", ch, bool(value))
+        except Exception as e:
+            logger.debug(f"Could not parse NOTIFY: {e}")
+
+    async def _send_command(self, command: str) -> bool:
+        """
+        Send a command to TF-Rack.
+
+        Args:
+            command: RCP command string (without newline)
+
+        Returns:
+            True if command was sent successfully
+        """
+        if not self.is_connected or not self.writer:
+            logger.warning(f"Cannot send command: not connected")
+            return False
+
+        async with self._lock:
             try:
-                # Request meter data
-                self._send("/meters", [1])
-                await asyncio.sleep(0.1)  # 10Hz update rate
+                full_command = f"{command}\n"
+                self.writer.write(full_command.encode('utf-8'))
+                await self.writer.drain()
+                logger.debug(f"Sent: {command}")
+                return True
             except Exception as e:
-                logger.error(f"Sync error: {e}")
-                await asyncio.sleep(1)
+                logger.error(f"Failed to send command: {e}")
+                self.is_connected = False
+                return False
+
+    def _notify_change(self, param: str, channel: int, value: Any):
+        """Notify callbacks of parameter change."""
+        for callback in self._callbacks.get(param, []):
+            callback(channel, value)
+        for callback in self._callbacks.get("any", []):
+            callback(param, channel, value)
 
     def register_callback(self, event: str, callback: Callable):
         """Register a callback for parameter changes."""
@@ -272,218 +290,404 @@ class TFRackService:
             self._callbacks[event] = []
         self._callbacks[event].append(callback)
 
+    def get_channel_state(self, channel: int) -> Optional[ChannelState]:
+        """Get cached state for a channel."""
+        return self._channel_states.get(channel)
+
     # ========== Channel Control Methods ==========
 
-    def _send(self, address: str, args: list) -> bool:
-        """
-        Safely send an OSC message.
+    def _db_to_rcp(self, db: float) -> int:
+        """Convert dB value to RCP protocol value (dB * 100)."""
+        if db <= -138:
+            return -32768  # -infinity
+        return int(db * 100)
 
-        Returns True if message was sent, False if client not available.
+    def _rcp_to_db(self, value: int) -> float:
+        """Convert RCP protocol value to dB."""
+        if value <= -32768:
+            return -138.0  # -infinity
+        return value / 100.0
+
+    def set_fader(self, channel: int, db: float) -> bool:
         """
-        if not self.client:
-            logger.warning(f"Cannot send OSC message {address}: client not connected")
+        Set channel fader level (sync wrapper for backwards compatibility).
+
+        For new code, use set_fader_async instead.
+        """
+        if not self.is_connected:
             return False
         try:
-            self.client.send_message(address, args)
-            logger.debug(f"OSC sent: {address} = {args}")
-            return True
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_fader_async(channel, db))
+                return True
+            else:
+                return loop.run_until_complete(self.set_fader_async(channel, db))
         except Exception as e:
-            logger.error(f"Failed to send OSC message {address}: {e}")
+            logger.error(f"set_fader error: {e}")
             return False
 
-    def set_fader(self, channel: int, db: float):
+    async def set_fader_async(self, channel: int, db: float) -> bool:
         """
         Set channel fader level.
 
         Args:
             channel: Channel number (1-32)
-            db: Level in dB (-inf to +10)
+            db: Level in dB (-138 to +10)
         """
-        address = self.OSC_PATTERNS["fader"].format(ch=channel)
-        value = self._db_to_osc(db)
-        self._send(address, [value])
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            logger.error(f"Invalid channel number: {channel}")
+            return False
 
-    def set_channel_on(self, channel: int, on: bool):
-        """Set channel on/off state."""
-        address = self.OSC_PATTERNS["on"].format(ch=channel)
-        self._send(address, [1 if on else 0])
+        ch_idx = channel - 1  # Convert to 0-indexed
+        value = self._db_to_rcp(db)
+        command = self.RCP_COMMANDS["fader_level"].format(ch=ch_idx, value=value)
 
-    def set_mute(self, channel: int, mute: bool):
-        """Set channel mute state."""
-        address = self.OSC_PATTERNS["mute"].format(ch=channel)
-        self._send(address, [1 if mute else 0])
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].fader = db
+        return success
 
-    def set_pan(self, channel: int, pan: float):
-        """Set channel pan (-100 to +100)."""
-        address = self.OSC_PATTERNS["pan"].format(ch=channel)
-        value = (pan + 100) / 200  # Convert to 0-1
-        self._send(address, [value])
+    def set_channel_on(self, channel: int, on: bool) -> bool:
+        """
+        Set channel on/off state (sync wrapper).
+        """
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_channel_on_async(channel, on))
+                return True
+            else:
+                return loop.run_until_complete(self.set_channel_on_async(channel, on))
+        except Exception as e:
+            logger.error(f"set_channel_on error: {e}")
+            return False
 
-    def set_name(self, channel: int, name: str):
+    async def set_channel_on_async(self, channel: int, on: bool) -> bool:
+        """
+        Set channel on/off state.
+
+        Note: In TF protocol, On=1 means channel is ON (passing audio),
+        On=0 means channel is OFF (muted).
+        """
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            logger.error(f"Invalid channel number: {channel}")
+            return False
+
+        ch_idx = channel - 1
+        value = 1 if on else 0
+        command = self.RCP_COMMANDS["channel_on"].format(ch=ch_idx, value=value)
+
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].on = on
+        return success
+
+    def set_mute(self, channel: int, mute: bool) -> bool:
+        """
+        Set channel mute state (sync wrapper).
+        This is the inverse of channel on - mute=True means channel is OFF.
+        """
+        return self.set_channel_on(channel, not mute)
+
+    async def set_mute_async(self, channel: int, mute: bool) -> bool:
+        """Set channel mute state (async)."""
+        return await self.set_channel_on_async(channel, not mute)
+
+    def set_pan(self, channel: int, pan: float) -> bool:
+        """Set channel pan (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_pan_async(channel, pan))
+                return True
+            else:
+                return loop.run_until_complete(self.set_pan_async(channel, pan))
+        except Exception as e:
+            logger.error(f"set_pan error: {e}")
+            return False
+
+    async def set_pan_async(self, channel: int, pan: float) -> bool:
+        """
+        Set channel pan (-100 to +100).
+        Protocol uses 0-127 where 64 is center.
+        """
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            return False
+
+        ch_idx = channel - 1
+        # Convert -100..+100 to 0..127
+        value = int((pan + 100) / 200 * 127)
+        value = max(0, min(127, value))
+        command = self.RCP_COMMANDS["pan"].format(ch=ch_idx, value=value)
+
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].pan = pan
+        return success
+
+    def set_name(self, channel: int, name: str) -> bool:
+        """Set channel name (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_name_async(channel, name))
+                return True
+            else:
+                return loop.run_until_complete(self.set_name_async(channel, name))
+        except Exception as e:
+            logger.error(f"set_name error: {e}")
+            return False
+
+    async def set_name_async(self, channel: int, name: str) -> bool:
         """Set channel name (max 8 characters)."""
-        address = self.OSC_PATTERNS["name"].format(ch=channel)
-        self._send(address, [name[:8]])
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            return False
 
-    def set_color(self, channel: int, color: str):
-        """Set channel color."""
-        address = self.OSC_PATTERNS["color"].format(ch=channel)
-        color_index = self._color_name_to_index(color)
-        self._send(address, [color_index])
+        ch_idx = channel - 1
+        name = name[:8]  # TF supports max 8 chars
+        command = self.RCP_COMMANDS["channel_name"].format(ch=ch_idx, value=name)
 
-    def set_gain(self, channel: int, db: float):
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].name = name
+        return success
+
+    def set_gain(self, channel: int, db: float) -> bool:
+        """Set input gain (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_gain_async(channel, db))
+                return True
+            else:
+                return loop.run_until_complete(self.set_gain_async(channel, db))
+        except Exception as e:
+            logger.error(f"set_gain error: {e}")
+            return False
+
+    async def set_gain_async(self, channel: int, db: float) -> bool:
         """Set input gain (-12 to +60 dB)."""
-        address = self.OSC_PATTERNS["gain"].format(ch=channel)
-        self._send(address, [db])
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            return False
 
-    def set_phantom(self, channel: int, on: bool):
+        ch_idx = channel - 1
+        value = self._db_to_rcp(db)
+        command = self.RCP_COMMANDS["gain"].format(ch=ch_idx, value=value)
+
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].gain = db
+        return success
+
+    def set_phantom(self, channel: int, on: bool) -> bool:
+        """Set phantom power (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.set_phantom_async(channel, on))
+                return True
+            else:
+                return loop.run_until_complete(self.set_phantom_async(channel, on))
+        except Exception as e:
+            logger.error(f"set_phantom error: {e}")
+            return False
+
+    async def set_phantom_async(self, channel: int, on: bool) -> bool:
         """Set phantom power (+48V)."""
-        address = self.OSC_PATTERNS["phantom"].format(ch=channel)
-        self._send(address, [1 if on else 0])
+        if channel < 1 or channel > self.INPUT_CHANNELS:
+            return False
 
-    # ========== EQ Methods ==========
+        ch_idx = channel - 1
+        value = 1 if on else 0
+        command = self.RCP_COMMANDS["phantom"].format(ch=ch_idx, value=value)
 
-    def set_eq_enabled(self, channel: int, enabled: bool):
-        """Enable/disable channel EQ."""
-        address = self.OSC_PATTERNS["eq_on"].format(ch=channel)
-        self._send(address, [1 if enabled else 0])
-
-    def set_eq_hpf(self, channel: int, enabled: bool, frequency: float = 80):
-        """Set high-pass filter."""
-        self._send(
-            self.OSC_PATTERNS["eq_hpf_on"].format(ch=channel),
-            [1 if enabled else 0]
-        )
-        self._send(
-            self.OSC_PATTERNS["eq_hpf_freq"].format(ch=channel),
-            [frequency]
-        )
-
-    def set_eq_band(self, channel: int, band: int, freq: float, gain: float, q: float):
-        """
-        Set EQ band parameters.
-
-        Args:
-            channel: Channel number
-            band: Band number (1=low, 2=low-mid, 3=high-mid, 4=high)
-            freq: Frequency in Hz
-            gain: Gain in dB
-            q: Q factor
-        """
-        band_map = {1: "low", 2: "lowmid", 3: "highmid", 4: "high"}
-        band_name = band_map.get(band, "low")
-
-        self._send(
-            self.OSC_PATTERNS[f"eq_{band_name}_freq"].format(ch=channel),
-            [freq]
-        )
-        self._send(
-            self.OSC_PATTERNS[f"eq_{band_name}_gain"].format(ch=channel),
-            [gain]
-        )
-        self._send(
-            self.OSC_PATTERNS[f"eq_{band_name}_q"].format(ch=channel),
-            [q]
-        )
-
-    # ========== Compressor Methods ==========
-
-    def set_comp_enabled(self, channel: int, enabled: bool):
-        """Enable/disable channel compressor."""
-        address = self.OSC_PATTERNS["comp_on"].format(ch=channel)
-        self._send(address, [1 if enabled else 0])
-
-    def set_comp_params(self, channel: int, threshold: float, ratio: float,
-                        attack: float, release: float, gain: float, knee: str = "medium"):
-        """Set compressor parameters."""
-        ch = channel
-        self._send(self.OSC_PATTERNS["comp_thresh"].format(ch=ch), [threshold])
-        self._send(self.OSC_PATTERNS["comp_ratio"].format(ch=ch), [ratio])
-        self._send(self.OSC_PATTERNS["comp_attack"].format(ch=ch), [attack])
-        self._send(self.OSC_PATTERNS["comp_release"].format(ch=ch), [release])
-        self._send(self.OSC_PATTERNS["comp_gain"].format(ch=ch), [gain])
-        knee_value = {"hard": 0, "medium": 1, "soft": 2}.get(knee, 1)
-        self._send(self.OSC_PATTERNS["comp_knee"].format(ch=ch), [knee_value])
-
-    # ========== Gate Methods ==========
-
-    def set_gate_enabled(self, channel: int, enabled: bool):
-        """Enable/disable channel gate."""
-        address = self.OSC_PATTERNS["gate_on"].format(ch=channel)
-        self._send(address, [1 if enabled else 0])
-
-    def set_gate_params(self, channel: int, threshold: float, range_db: float,
-                        attack: float, hold: float, release: float):
-        """Set gate parameters."""
-        ch = channel
-        self._send(self.OSC_PATTERNS["gate_thresh"].format(ch=ch), [threshold])
-        self._send(self.OSC_PATTERNS["gate_range"].format(ch=ch), [range_db])
-        self._send(self.OSC_PATTERNS["gate_attack"].format(ch=ch), [attack])
-        self._send(self.OSC_PATTERNS["gate_hold"].format(ch=ch), [hold])
-        self._send(self.OSC_PATTERNS["gate_release"].format(ch=ch), [release])
-
-    # ========== Aux Send Methods ==========
-
-    def set_aux_send(self, channel: int, aux: int, level: float):
-        """Set aux send level."""
-        address = self.OSC_PATTERNS["send"].format(ch=channel, aux=aux)
-        self._send(address, [self._db_to_osc(level)])
-
-    def set_aux_send_on(self, channel: int, aux: int, on: bool):
-        """Set aux send on/off."""
-        address = self.OSC_PATTERNS["send_on"].format(ch=channel, aux=aux)
-        self._send(address, [1 if on else 0])
+        success = await self._send_command(command)
+        if success:
+            self._channel_states[channel].phantom = on
+        return success
 
     # ========== Scene Methods ==========
 
-    def recall_scene(self, scene_number: int):
-        """Recall a scene from TF-Rack memory."""
-        self._send("/scene/recall", [scene_number])
+    def recall_scene(self, scene_number: int, bank: str = "a") -> bool:
+        """Recall scene (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.recall_scene_async(scene_number, bank))
+                return True
+            else:
+                return loop.run_until_complete(self.recall_scene_async(scene_number, bank))
+        except Exception as e:
+            logger.error(f"recall_scene error: {e}")
+            return False
 
-    def store_scene(self, scene_number: int, name: str = ""):
-        """Store current settings to a scene."""
-        self._send("/scene/store", [scene_number, name])
+    async def recall_scene_async(self, scene: int, bank: str = "a") -> bool:
+        """
+        Recall a scene from TF-Rack's internal memory.
+
+        Args:
+            scene: Scene number (0-99)
+            bank: Scene bank ('a' or 'b')
+        """
+        if scene < 0 or scene > 99:
+            logger.error(f"Invalid scene number: {scene}")
+            return False
+
+        bank = bank.lower()
+        if bank not in ('a', 'b'):
+            logger.error(f"Invalid bank: {bank}")
+            return False
+
+        command_key = f"scene_recall_{bank}"
+        command = self.RCP_COMMANDS[command_key].format(scene=scene)
+
+        logger.info(f"Recalling scene {scene} from bank {bank.upper()}")
+        print(f"Recalling TF-Rack scene {scene} from bank {bank.upper()}")
+        return await self._send_command(command)
+
+    def store_scene(self, scene_number: int, bank: str = "a") -> bool:
+        """Store scene (sync wrapper)."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.store_scene_async(scene_number, bank))
+                return True
+            else:
+                return loop.run_until_complete(self.store_scene_async(scene_number, bank))
+        except Exception as e:
+            logger.error(f"store_scene error: {e}")
+            return False
+
+    async def store_scene_async(self, scene: int, bank: str = "a") -> bool:
+        """
+        Store current state to a scene in TF-Rack's internal memory.
+
+        Args:
+            scene: Scene number (0-99)
+            bank: Scene bank ('a' or 'b')
+        """
+        if scene < 0 or scene > 99:
+            logger.error(f"Invalid scene number: {scene}")
+            return False
+
+        bank = bank.lower()
+        if bank not in ('a', 'b'):
+            return False
+
+        command_key = f"scene_store_{bank}"
+        command = self.RCP_COMMANDS[command_key].format(scene=scene)
+
+        logger.info(f"Storing scene {scene} to bank {bank.upper()}")
+        return await self._send_command(command)
+
+    # ========== DCA Methods ==========
+
+    async def set_dca_fader(self, dca: int, db: float) -> bool:
+        """Set DCA fader level (DCA 1-8)."""
+        if dca < 1 or dca > self.DCA_GROUPS:
+            return False
+
+        dca_idx = dca - 1
+        value = self._db_to_rcp(db)
+        command = self.RCP_COMMANDS["dca_fader"].format(ch=dca_idx, value=value)
+        return await self._send_command(command)
+
+    async def set_dca_on(self, dca: int, on: bool) -> bool:
+        """Set DCA on/off state (DCA 1-8)."""
+        if dca < 1 or dca > self.DCA_GROUPS:
+            return False
+
+        dca_idx = dca - 1
+        value = 1 if on else 0
+        command = self.RCP_COMMANDS["dca_on"].format(ch=dca_idx, value=value)
+        return await self._send_command(command)
 
     # ========== Utility Methods ==========
 
-    def get_channel_state(self, channel: int) -> Optional[ChannelState]:
-        """Get current state of a channel."""
-        return self._channel_states.get(channel)
-
-    def request_channel_info(self, channel: int):
-        """Request full channel information from TF-Rack."""
-        patterns = ["fader", "on", "pan", "name", "color", "gain", "phantom",
-                    "eq_on", "comp_on", "gate_on"]
-        for pattern in patterns:
-            address = self.OSC_PATTERNS[pattern].format(ch=channel)
-            self._send(address, [])
-
     def request_all_channels(self):
-        """Request information for all channels."""
-        for ch in range(1, self.INPUT_CHANNELS + 1):
-            self.request_channel_info(ch)
+        """Request current state of all channels from TF-Rack (sync wrapper)."""
+        if not self.is_connected:
+            return
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.request_all_channels_async())
+        except Exception as e:
+            logger.error(f"request_all_channels error: {e}")
 
-    # ========== Conversion Helpers ==========
+    async def request_all_channels_async(self):
+        """Request current state of all channels from TF-Rack."""
+        for ch in range(self.INPUT_CHANNELS):
+            await self._send_command(f"get MIXER:Current/InCh/Fader/Level {ch} 0")
+            await self._send_command(f"get MIXER:Current/InCh/Fader/On {ch} 0")
+            await asyncio.sleep(0.01)  # Small delay to not overwhelm
 
-    @staticmethod
-    def _db_to_osc(db: float) -> float:
-        """Convert dB to OSC fader value (0-1)."""
-        if db <= -90:
-            return 0.0
-        elif db >= 10:
-            return 1.0
-        else:
-            # TF fader scale approximation
-            return (db + 90) / 100
+    # ========== EQ/Dynamics Stubs (for API compatibility) ==========
 
-    @staticmethod
-    def _osc_to_db(value: float) -> float:
-        """Convert OSC fader value (0-1) to dB."""
-        if value <= 0:
-            return -90.0  # Off position
-        elif value >= 1:
-            return 10.0
-        else:
-            return (value * 100) - 90
+    def set_eq_enabled(self, channel: int, enabled: bool) -> bool:
+        """Enable/disable channel EQ."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                ch_idx = channel - 1
+                value = 1 if enabled else 0
+                command = self.RCP_COMMANDS["eq_on"].format(ch=ch_idx, value=value)
+                asyncio.create_task(self._send_command(command))
+                return True
+        except Exception:
+            pass
+        return False
+
+    def set_comp_enabled(self, channel: int, enabled: bool) -> bool:
+        """Enable/disable channel compressor."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                ch_idx = channel - 1
+                value = 1 if enabled else 0
+                command = self.RCP_COMMANDS["comp_on"].format(ch=ch_idx, value=value)
+                asyncio.create_task(self._send_command(command))
+                return True
+        except Exception:
+            pass
+        return False
+
+    def set_gate_enabled(self, channel: int, enabled: bool) -> bool:
+        """Enable/disable channel gate."""
+        if not self.is_connected:
+            return False
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                ch_idx = channel - 1
+                value = 1 if enabled else 0
+                command = self.RCP_COMMANDS["gate_on"].format(ch=ch_idx, value=value)
+                asyncio.create_task(self._send_command(command))
+                return True
+        except Exception:
+            pass
+        return False
+
+    # ========== Color Helpers (for API compatibility) ==========
 
     @staticmethod
     def _color_name_to_index(color: str) -> int:
