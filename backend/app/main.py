@@ -24,6 +24,7 @@ from sqlalchemy import select
 from app.services.dante_discovery import DanteDiscoveryService
 from app.services.eink_manager import EInkManager
 from app.services.wireless_monitor import wireless_monitor
+from app.utils.prevent_sleep import prevent_sleep, allow_sleep
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -66,6 +67,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     print("Starting Yamaha TF Showbuilder...")
+
+    # Prevent system from sleeping while server is running
+    prevent_sleep()
 
     # Initialize database
     await init_db()
@@ -112,6 +116,9 @@ async def lifespan(app: FastAPI):
 
     if hasattr(app.state, 'wireless'):
         await app.state.wireless.stop()
+
+    # Restore normal sleep behavior
+    allow_sleep()
 
     print("Shutdown complete.")
 
