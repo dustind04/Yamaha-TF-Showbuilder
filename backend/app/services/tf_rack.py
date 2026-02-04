@@ -235,30 +235,31 @@ class TFRackService:
     def _handle_get_response(self, response: str):
         """Handle responses to get commands."""
         # Format: OK get MIXER:Current/InCh/Fader/Level 0 0 -1000
+        # parts: [OK, get, MIXER:..., ch, 0, value]
         try:
             parts = response.split()
             if len(parts) >= 6 and "InCh/Fader/Level" in response:
-                ch = int(parts[4]) + 1  # Convert 0-indexed to 1-indexed
-                value = int(parts[6])
+                ch = int(parts[3]) + 1  # Convert 0-indexed to 1-indexed
+                value = int(parts[5])
                 db = value / 100.0
                 if ch in self._channel_states:
                     self._channel_states[ch].fader = db
-                    logger.debug(f"CH{ch} fader: {db}dB")
+                    print(f"  CH{ch} fader: {db}dB")
             elif len(parts) >= 6 and "InCh/Fader/On" in response:
-                ch = int(parts[4]) + 1
-                value = int(parts[6])
+                ch = int(parts[3]) + 1
+                value = int(parts[5])
                 if ch in self._channel_states:
                     self._channel_states[ch].on = bool(value)
-                    logger.debug(f"CH{ch} on: {bool(value)}")
+                    print(f"  CH{ch} on: {bool(value)}")
             elif len(parts) >= 6 and "InCh/Label/Name" in response:
-                ch = int(parts[4]) + 1
-                # Name is the last part, may contain spaces if quoted
-                name = parts[6].strip('"') if len(parts) > 6 else ""
+                ch = int(parts[3]) + 1
+                # Name is everything after the 5th part, stripped of quotes
+                name = " ".join(parts[5:]).strip('"')
                 if ch in self._channel_states:
                     self._channel_states[ch].name = name
-                    logger.debug(f"CH{ch} name: {name}")
+                    print(f"  CH{ch} name: '{name}'")
         except Exception as e:
-            logger.debug(f"Could not parse get response: {e}")
+            print(f"Could not parse get response '{response}': {e}")
 
     def _handle_notify(self, response: str):
         """Handle NOTIFY messages (parameter changes from console)."""
