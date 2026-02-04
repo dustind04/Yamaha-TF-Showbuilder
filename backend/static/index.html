@@ -124,6 +124,42 @@
                             <button class="btn btn-primary" onclick="showCreateSceneModal()">+ New Scene</button>
                         </div>
                     </div>
+
+                    <!-- TF-Rack Scene Recall -->
+                    <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                        <h3 style="margin-bottom: 0.75rem;">TF-Rack Scene Recall</h3>
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label>Bank:</label>
+                                <select id="tf-scene-bank" class="input" style="width: 80px;">
+                                    <option value="a">A</option>
+                                    <option value="b">B</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label>Scene:</label>
+                                <input type="number" id="tf-scene-number" class="input" min="0" max="99" value="0" style="width: 80px;">
+                            </div>
+                            <button class="btn btn-primary" onclick="recallTFScene()">Recall Scene</button>
+                            <span id="tf-scene-status" style="color: var(--accent-green);"></span>
+                        </div>
+                        <div style="margin-top: 0.75rem;">
+                            <label style="font-size: 0.85rem; color: var(--text-muted);">Quick Recall:</label>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;" id="tf-quick-scenes">
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 0)">A-0</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 1)">A-1</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 2)">A-2</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 3)">A-3</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 4)">A-4</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 5)">A-5</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 6)">A-6</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 7)">A-7</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 8)">A-8</button>
+                                <button class="btn btn-secondary btn-sm" onclick="recallTFSceneQuick('a', 9)">A-9</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="scenes-layout">
                         <div class="scenes-list" id="scenes-list"></div>
                         <div class="scene-details card" id="scene-details">

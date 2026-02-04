@@ -131,6 +131,39 @@ async def disconnect_tf_rack(request: Request):
     raise HTTPException(status_code=500, detail="TF-Rack service not available")
 
 
+class TFSceneRecall(BaseModel):
+    bank: str = "a"
+    scene: int
+
+
+@router.post("/tf-rack/recall-scene")
+async def recall_tf_rack_scene(
+    recall: TFSceneRecall,
+    request: Request
+):
+    """Recall a scene from TF-Rack's internal memory."""
+    tf_rack = getattr(request.app.state, 'tf_rack', None)
+
+    if not tf_rack or not tf_rack.is_connected:
+        raise HTTPException(status_code=503, detail="TF-Rack not connected")
+
+    if recall.scene < 0 or recall.scene > 99:
+        raise HTTPException(status_code=400, detail="Scene must be 0-99")
+
+    if recall.bank.lower() not in ('a', 'b'):
+        raise HTTPException(status_code=400, detail="Bank must be 'a' or 'b'")
+
+    success = await tf_rack.recall_scene_async(recall.scene, recall.bank)
+
+    if success:
+        return {
+            "status": "ok",
+            "message": f"Recalled scene {recall.bank.upper()}-{recall.scene}"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to recall scene")
+
+
 @router.get("/tf-rack/channels")
 async def get_tf_rack_channels(request: Request):
     """Get current channel states from TF-Rack."""

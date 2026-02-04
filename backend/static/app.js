@@ -293,6 +293,33 @@ async function pushToTFRack() {
     }
 }
 
+// ========== TF-Rack Scene Recall ==========
+
+async function recallTFScene() {
+    const bank = document.getElementById('tf-scene-bank').value;
+    const scene = parseInt(document.getElementById('tf-scene-number').value);
+    await recallTFSceneQuick(bank, scene);
+}
+
+async function recallTFSceneQuick(bank, scene) {
+    const statusEl = document.getElementById('tf-scene-status');
+    statusEl.textContent = `Recalling ${bank.toUpperCase()}-${scene}...`;
+    statusEl.style.color = 'var(--text-muted)';
+
+    try {
+        const result = await api('/devices/tf-rack/recall-scene', {
+            method: 'POST',
+            body: JSON.stringify({ bank: bank, scene: scene })
+        });
+        statusEl.textContent = `✓ Recalled ${bank.toUpperCase()}-${scene}`;
+        statusEl.style.color = 'var(--accent-green)';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } catch (e) {
+        statusEl.textContent = `✗ Failed: ${e.message}`;
+        statusEl.style.color = 'var(--accent-red)';
+    }
+}
+
 function renderScenesList() {
     const container = document.getElementById('scenes-list');
     container.innerHTML = state.scenes.map(s => `
