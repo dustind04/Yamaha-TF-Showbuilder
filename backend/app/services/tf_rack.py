@@ -216,12 +216,16 @@ class TFRackService:
             # Note: We use a simple approach that works with newer python-osc versions
             try:
                 # Try to create server for receiving responses
+                # Use get_running_loop() since we're inside an async context
+                loop = asyncio.get_running_loop()
                 self.server = AsyncIOOSCUDPServer(
                     ("0.0.0.0", self.port + 1),
                     self.dispatcher,
-                    asyncio.get_event_loop()
+                    loop
                 )
-                self.server.serve()
+                # serve() returns a coroutine that needs to be awaited
+                transport, protocol = await self.server.create_serve_endpoint()
+                logger.info(f"OSC receive server listening on port {self.port + 1}")
             except Exception as server_error:
                 # Server creation is optional - we can still send commands
                 logger.warning(f"Could not create OSC receive server: {server_error}")

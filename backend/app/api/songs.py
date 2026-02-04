@@ -221,7 +221,7 @@ async def delete_song(song_id: int, db: AsyncSession = Depends(get_db)):
 async def get_chord_chart(
     song_id: int,
     key: Optional[str] = None,
-    format: str = Query("chordpro", regex="^(chordpro|text)$"),
+    format: str = Query("chordpro", pattern="^(chordpro|text)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -821,7 +821,7 @@ async def import_song(
 @router.get("/search/external")
 async def search_external_songs(
     q: str = Query(..., min_length=2),
-    source: str = Query("all", regex="^(all|chordify|ultimate_guitar)$")
+    source: str = Query("all", pattern="^(all|chordify|ultimate_guitar)$")
 ):
     """
     Search for songs from external open source databases.
