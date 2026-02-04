@@ -222,6 +222,7 @@ async def recall_scene(
     Recall a scene to the mixer.
 
     Restores all channel settings and optionally updates e-ink displays.
+    Sends individual channel values to TF-Rack via OSC.
     """
     result = await db.execute(select(Scene).where(Scene.id == scene_id))
     scene = result.scalar_one_or_none()
@@ -234,12 +235,11 @@ async def recall_scene(
     # Determine fade time
     fade_time = options.fade_override if options.fade_override is not None else scene.fade_time
 
-    # Recall to TF-Rack
+    # Get TF-Rack connection
     tf_rack = getattr(request.app.state, 'tf_rack', None) if request else None
-    if tf_rack and tf_rack.is_connected:
-        tf_rack.recall_scene(scene.scene_number)
+    channels_sent = 0
 
-    # Update database channels
+    # Update database channels and send to TF-Rack
     for ch_key, ch_state in scene.mixer_state.items():
         # Parse channel key (format: "channeltype_channelnumber")
         parts = ch_key.rsplit('_', 1)
@@ -256,10 +256,26 @@ async def recall_scene(
             channel = result.scalar_one_or_none()
 
             if channel:
-                # Update channel state
+                # Update channel state in database
                 for field, value in ch_state.items():
                     if hasattr(channel, field):
                         setattr(channel, field, value)
+
+                # Send to TF-Rack
+                if tf_rack and tf_rack.is_connected:
+                    if "fader_level" in ch_state:
+                        tf_rack.set_fader(ch_num, ch_state["fader_level"])
+                    if "mute" in ch_state:
+                        tf_rack.set_mute(ch_num, ch_state["mute"])
+                    if "on" in ch_state:
+                        tf_rack.set_channel_on(ch_num, ch_state["on"])
+                    if "name" in ch_state:
+                        tf_rack.set_name(ch_num, ch_state["name"])
+                    if "pan" in ch_state:
+                        tf_rack.set_pan(ch_num, ch_state["pan"])
+                    if "gain" in ch_state:
+                        tf_rack.set_gain(ch_num, ch_state["gain"])
+                    channels_sent += 1
 
     await db.commit()
 
@@ -274,7 +290,8 @@ async def recall_scene(
         "status": "ok",
         "scene_id": scene_id,
         "scene_number": scene.scene_number,
-        "fade_time": fade_time
+        "fade_time": fade_time,
+        "channels_sent": channels_sent
     }
 
 

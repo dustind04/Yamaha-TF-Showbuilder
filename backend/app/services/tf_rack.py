@@ -256,7 +256,7 @@ class TFRackService:
         while self.is_connected:
             try:
                 # Request meter data
-                self.client.send_message("/meters", [1])
+                self._send("/meters", [1])
                 await asyncio.sleep(0.1)  # 10Hz update rate
             except Exception as e:
                 logger.error(f"Sync error: {e}")
@@ -270,6 +270,23 @@ class TFRackService:
 
     # ========== Channel Control Methods ==========
 
+    def _send(self, address: str, args: list) -> bool:
+        """
+        Safely send an OSC message.
+
+        Returns True if message was sent, False if client not available.
+        """
+        if not self.client:
+            logger.warning(f"Cannot send OSC message {address}: client not connected")
+            return False
+        try:
+            self.client.send_message(address, args)
+            logger.debug(f"OSC sent: {address} = {args}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send OSC message {address}: {e}")
+            return False
+
     def set_fader(self, channel: int, db: float):
         """
         Set channel fader level.
@@ -280,59 +297,59 @@ class TFRackService:
         """
         address = self.OSC_PATTERNS["fader"].format(ch=channel)
         value = self._db_to_osc(db)
-        self.client.send_message(address, [value])
+        self._send(address, [value])
 
     def set_channel_on(self, channel: int, on: bool):
         """Set channel on/off state."""
         address = self.OSC_PATTERNS["on"].format(ch=channel)
-        self.client.send_message(address, [1 if on else 0])
+        self._send(address, [1 if on else 0])
 
     def set_mute(self, channel: int, mute: bool):
         """Set channel mute state."""
         address = self.OSC_PATTERNS["mute"].format(ch=channel)
-        self.client.send_message(address, [1 if mute else 0])
+        self._send(address, [1 if mute else 0])
 
     def set_pan(self, channel: int, pan: float):
         """Set channel pan (-100 to +100)."""
         address = self.OSC_PATTERNS["pan"].format(ch=channel)
         value = (pan + 100) / 200  # Convert to 0-1
-        self.client.send_message(address, [value])
+        self._send(address, [value])
 
     def set_name(self, channel: int, name: str):
         """Set channel name (max 8 characters)."""
         address = self.OSC_PATTERNS["name"].format(ch=channel)
-        self.client.send_message(address, [name[:8]])
+        self._send(address, [name[:8]])
 
     def set_color(self, channel: int, color: str):
         """Set channel color."""
         address = self.OSC_PATTERNS["color"].format(ch=channel)
         color_index = self._color_name_to_index(color)
-        self.client.send_message(address, [color_index])
+        self._send(address, [color_index])
 
     def set_gain(self, channel: int, db: float):
         """Set input gain (-12 to +60 dB)."""
         address = self.OSC_PATTERNS["gain"].format(ch=channel)
-        self.client.send_message(address, [db])
+        self._send(address, [db])
 
     def set_phantom(self, channel: int, on: bool):
         """Set phantom power (+48V)."""
         address = self.OSC_PATTERNS["phantom"].format(ch=channel)
-        self.client.send_message(address, [1 if on else 0])
+        self._send(address, [1 if on else 0])
 
     # ========== EQ Methods ==========
 
     def set_eq_enabled(self, channel: int, enabled: bool):
         """Enable/disable channel EQ."""
         address = self.OSC_PATTERNS["eq_on"].format(ch=channel)
-        self.client.send_message(address, [1 if enabled else 0])
+        self._send(address, [1 if enabled else 0])
 
     def set_eq_hpf(self, channel: int, enabled: bool, frequency: float = 80):
         """Set high-pass filter."""
-        self.client.send_message(
+        self._send(
             self.OSC_PATTERNS["eq_hpf_on"].format(ch=channel),
             [1 if enabled else 0]
         )
-        self.client.send_message(
+        self._send(
             self.OSC_PATTERNS["eq_hpf_freq"].format(ch=channel),
             [frequency]
         )
@@ -351,15 +368,15 @@ class TFRackService:
         band_map = {1: "low", 2: "lowmid", 3: "highmid", 4: "high"}
         band_name = band_map.get(band, "low")
 
-        self.client.send_message(
+        self._send(
             self.OSC_PATTERNS[f"eq_{band_name}_freq"].format(ch=channel),
             [freq]
         )
-        self.client.send_message(
+        self._send(
             self.OSC_PATTERNS[f"eq_{band_name}_gain"].format(ch=channel),
             [gain]
         )
-        self.client.send_message(
+        self._send(
             self.OSC_PATTERNS[f"eq_{band_name}_q"].format(ch=channel),
             [q]
         )
@@ -369,58 +386,58 @@ class TFRackService:
     def set_comp_enabled(self, channel: int, enabled: bool):
         """Enable/disable channel compressor."""
         address = self.OSC_PATTERNS["comp_on"].format(ch=channel)
-        self.client.send_message(address, [1 if enabled else 0])
+        self._send(address, [1 if enabled else 0])
 
     def set_comp_params(self, channel: int, threshold: float, ratio: float,
                         attack: float, release: float, gain: float, knee: str = "medium"):
         """Set compressor parameters."""
         ch = channel
-        self.client.send_message(self.OSC_PATTERNS["comp_thresh"].format(ch=ch), [threshold])
-        self.client.send_message(self.OSC_PATTERNS["comp_ratio"].format(ch=ch), [ratio])
-        self.client.send_message(self.OSC_PATTERNS["comp_attack"].format(ch=ch), [attack])
-        self.client.send_message(self.OSC_PATTERNS["comp_release"].format(ch=ch), [release])
-        self.client.send_message(self.OSC_PATTERNS["comp_gain"].format(ch=ch), [gain])
+        self._send(self.OSC_PATTERNS["comp_thresh"].format(ch=ch), [threshold])
+        self._send(self.OSC_PATTERNS["comp_ratio"].format(ch=ch), [ratio])
+        self._send(self.OSC_PATTERNS["comp_attack"].format(ch=ch), [attack])
+        self._send(self.OSC_PATTERNS["comp_release"].format(ch=ch), [release])
+        self._send(self.OSC_PATTERNS["comp_gain"].format(ch=ch), [gain])
         knee_value = {"hard": 0, "medium": 1, "soft": 2}.get(knee, 1)
-        self.client.send_message(self.OSC_PATTERNS["comp_knee"].format(ch=ch), [knee_value])
+        self._send(self.OSC_PATTERNS["comp_knee"].format(ch=ch), [knee_value])
 
     # ========== Gate Methods ==========
 
     def set_gate_enabled(self, channel: int, enabled: bool):
         """Enable/disable channel gate."""
         address = self.OSC_PATTERNS["gate_on"].format(ch=channel)
-        self.client.send_message(address, [1 if enabled else 0])
+        self._send(address, [1 if enabled else 0])
 
     def set_gate_params(self, channel: int, threshold: float, range_db: float,
                         attack: float, hold: float, release: float):
         """Set gate parameters."""
         ch = channel
-        self.client.send_message(self.OSC_PATTERNS["gate_thresh"].format(ch=ch), [threshold])
-        self.client.send_message(self.OSC_PATTERNS["gate_range"].format(ch=ch), [range_db])
-        self.client.send_message(self.OSC_PATTERNS["gate_attack"].format(ch=ch), [attack])
-        self.client.send_message(self.OSC_PATTERNS["gate_hold"].format(ch=ch), [hold])
-        self.client.send_message(self.OSC_PATTERNS["gate_release"].format(ch=ch), [release])
+        self._send(self.OSC_PATTERNS["gate_thresh"].format(ch=ch), [threshold])
+        self._send(self.OSC_PATTERNS["gate_range"].format(ch=ch), [range_db])
+        self._send(self.OSC_PATTERNS["gate_attack"].format(ch=ch), [attack])
+        self._send(self.OSC_PATTERNS["gate_hold"].format(ch=ch), [hold])
+        self._send(self.OSC_PATTERNS["gate_release"].format(ch=ch), [release])
 
     # ========== Aux Send Methods ==========
 
     def set_aux_send(self, channel: int, aux: int, level: float):
         """Set aux send level."""
         address = self.OSC_PATTERNS["send"].format(ch=channel, aux=aux)
-        self.client.send_message(address, [self._db_to_osc(level)])
+        self._send(address, [self._db_to_osc(level)])
 
     def set_aux_send_on(self, channel: int, aux: int, on: bool):
         """Set aux send on/off."""
         address = self.OSC_PATTERNS["send_on"].format(ch=channel, aux=aux)
-        self.client.send_message(address, [1 if on else 0])
+        self._send(address, [1 if on else 0])
 
     # ========== Scene Methods ==========
 
     def recall_scene(self, scene_number: int):
         """Recall a scene from TF-Rack memory."""
-        self.client.send_message("/scene/recall", [scene_number])
+        self._send("/scene/recall", [scene_number])
 
     def store_scene(self, scene_number: int, name: str = ""):
         """Store current settings to a scene."""
-        self.client.send_message("/scene/store", [scene_number, name])
+        self._send("/scene/store", [scene_number, name])
 
     # ========== Utility Methods ==========
 
@@ -434,7 +451,7 @@ class TFRackService:
                     "eq_on", "comp_on", "gate_on"]
         for pattern in patterns:
             address = self.OSC_PATTERNS[pattern].format(ch=channel)
-            self.client.send_message(address, [])
+            self._send(address, [])
 
     def request_all_channels(self):
         """Request information for all channels."""
