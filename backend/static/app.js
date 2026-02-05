@@ -634,14 +634,14 @@ function renderSongsList() {
     const search = document.getElementById('song-search')?.value?.toLowerCase() || '';
     const filtered = state.songs.filter(s =>
         s.title?.toLowerCase().includes(search) ||
-        s.artist?.toLowerCase().includes(search)
+        s.artist_name?.toLowerCase().includes(search)
     );
 
     container.innerHTML = filtered.map(s => `
         <div class="song-item ${state.selectedSong?.id === s.id ? 'selected' : ''}"
              onclick="selectSong(${s.id})">
             <h4>${s.title}</h4>
-            <div class="artist">${s.artist || 'Unknown artist'} • ${s.key || 'No key'}</div>
+            <div class="artist">${s.artist_name || 'Unknown artist'} • ${s.original_key || 'No key'}</div>
         </div>
     `).join('') || '<p class="placeholder-text">No songs found</p>';
 }
@@ -671,8 +671,8 @@ async function renderSongDetails() {
     container.innerHTML = `
         <h3>${s.title}</h3>
         <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-            <div><strong>Artist:</strong> ${s.artist || 'Unknown'}</div>
-            <div><strong>Key:</strong> ${s.key || 'N/A'}</div>
+            <div><strong>Artist:</strong> ${s.artist_name || 'Unknown'}</div>
+            <div><strong>Key:</strong> ${s.original_key || 'N/A'}</div>
             <div><strong>Tempo:</strong> ${s.tempo || 'N/A'} BPM</div>
         </div>
         <h4>Chord Chart</h4>
@@ -748,8 +748,8 @@ function showCreateSongModal() {
 async function createSong() {
     const data = {
         title: document.getElementById('song-title').value,
-        artist: document.getElementById('song-artist').value,
-        key: document.getElementById('song-key').value,
+        artist_name: document.getElementById('song-artist').value,
+        original_key: document.getElementById('song-key').value || 'C',
         tempo: parseInt(document.getElementById('song-tempo').value) || null,
         chord_chart: document.getElementById('song-chart').value
     };
