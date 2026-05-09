@@ -1,0 +1,22 @@
+# Xcode-generated artifacts (project is generated via XcodeGen)
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+build/
+.build/
+
+# macOS
+.DS_Store
+
+# User-specific
+xcuserdata/
+*.xcuserstate
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# Provisioning profiles
+*.mobileprovision
+*.p12
