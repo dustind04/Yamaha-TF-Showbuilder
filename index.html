@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Parts Generator</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <h1>3D Parts Generator</h1>
+            <span class="subtitle">Parametric parts for 3D printing — no CAD skills needed</span>
+        </header>
+
+        <!-- Main Layout -->
+        <div id="main">
+            <!-- Left Panel: Part Selection -->
+            <aside id="part-selector">
+                <h2>Part Type</h2>
+                <div id="part-categories">
+                    <div class="category">
+                        <h3>Brackets &amp; Mounts</h3>
+                        <button class="part-btn active" data-part="l-bracket">L-Bracket</button>
+                        <button class="part-btn" data-part="u-bracket">U-Bracket</button>
+                        <button class="part-btn" data-part="flat-bracket">Flat Bracket</button>
+                        <button class="part-btn" data-part="wall-mount">Wall Mount</button>
+                        <button class="part-btn" data-part="shelf-bracket">Shelf Bracket</button>
+                    </div>
+                    <div class="category">
+                        <h3>Organizers</h3>
+                        <button class="part-btn" data-part="cable-organizer">Cable Organizer</button>
+                        <button class="part-btn" data-part="grid-organizer">Grid Organizer</button>
+                    </div>
+                    <div class="category">
+                        <h3>Stands &amp; Holders</h3>
+                        <button class="part-btn" data-part="phone-stand">Phone/Tablet Stand</button>
+                        <button class="part-btn" data-part="hook">Hook</button>
+                    </div>
+                    <div class="category">
+                        <h3>Enclosures</h3>
+                        <button class="part-btn" data-part="enclosure">Box / Enclosure</button>
+                    </div>
+                    <div class="category">
+                        <h3>Adapters &amp; Fasteners</h3>
+                        <button class="part-btn" data-part="pipe-clamp">Pipe/Rod Clamp</button>
+                        <button class="part-btn" data-part="adapter-ring">Adapter Ring</button>
+                        <button class="part-btn" data-part="spacer">Spacer / Washer</button>
+                        <button class="part-btn" data-part="knob">Knob / Handle</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center: 3D Viewport -->
+            <main id="viewport-container">
+                <div id="viewport">
+                    <canvas id="render-canvas"></canvas>
+                </div>
+                <div id="viewport-controls">
+                    <span class="hint">Drag to rotate &middot; Scroll to zoom &middot; Right-drag to pan</span>
+                    <div id="viewport-buttons">
+                        <button id="btn-reset-view" title="Reset camera view">Reset View</button>
+                        <button id="btn-toggle-grid" title="Toggle grid visibility">Grid</button>
+                        <button id="btn-toggle-dimensions" title="Show/hide dimensions">Dims</button>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Panel: Parameters -->
+            <aside id="params-panel">
+                <h2>Parameters <span class="unit-label">(mm)</span></h2>
+                <div id="params-container">
+                    <!-- Dynamically populated -->
+                </div>
+
+                <div id="print-settings">
+                    <h3>Print Settings</h3>
+                    <label>
+                        <span>Wall Thickness</span>
+                        <input type="number" id="wall-thickness" value="2" min="0.4" max="10" step="0.1">
+                        <span class="unit">mm</span>
+                    </label>
+                    <label>
+                        <span>Tolerance</span>
+                        <input type="number" id="tolerance" value="0.2" min="0" max="1" step="0.05">
+                        <span class="unit">mm</span>
+                    </label>
+                </div>
+
+                <div id="export-section">
+                    <button id="btn-export-stl" class="primary-btn">Export STL</button>
+                    <div id="part-info">
+                        <span id="part-dimensions"></span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- CSG Library -->
+    <script src="js/csg.js"></script>
+    <!-- App modules -->
+    <script src="js/stl-exporter.js"></script>
+    <script src="js/part-generators.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
