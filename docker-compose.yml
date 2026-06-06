@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tf-showbuilder-api
+    ports:
+      - "8000:8000"
+    environment:
+      - TF_RACK_IP=${TF_RACK_IP:-192.168.1.100}
+      - TF_RACK_PORT=${TF_RACK_PORT:-49280}
+      - DANTE_DISCOVERY_ENABLED=${DANTE_DISCOVERY_ENABLED:-true}
+      - EINK_ENABLED=${EINK_ENABLED:-true}
+      - DATABASE_URL=sqlite:///./data/showbuilder.db
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    networks:
+      - tf-network
+    restart: unless-stopped
+    privileged: true  # Required for USB access to e-ink displays
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tf-showbuilder-ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - tf-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tf-showbuilder-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - tf-network
+    restart: unless-stopped
+
+networks:
+  tf-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  redis-data:
